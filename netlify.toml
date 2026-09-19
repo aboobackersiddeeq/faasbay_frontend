@@ -1,0 +1,12 @@
+# VITE_API_URL and VITE_RAZORPAY_KEY_ID are client-side (Vite "VITE_" prefixed)
+# variables by design: Vite/TanStack Start inline them into the client and SSR
+# bundles at build time so the browser can use them. Netlify's secrets scanner
+# flags any build env var it finds baked into build output, but neither of
+# these values is actually sensitive:
+#   - VITE_API_URL is a public backend base URL.
+#   - VITE_RAZORPAY_KEY_ID is Razorpay's publishable Key ID, meant to be
+#     exposed to the client (the secret Key Secret is never sent to the
+#     frontend).
+# Omit them from scanning instead of disabling the scanner entirely.
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "VITE_API_URL,VITE_RAZORPAY_KEY_ID"

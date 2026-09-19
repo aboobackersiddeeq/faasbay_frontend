@@ -435,7 +435,7 @@ export function CheckoutModal() {
       const targetMethod = rzpMethodMap[paymentMethod] || "upi";
 
       const options: any = {
-        key: serverKeyId || RAZORPAY_KEY_ID || "rzp_live_TZtCQ5TliFf8T7",
+        key: serverKeyId || RAZORPAY_KEY_ID,
         amount: Math.round(amountToPayNow * 100),
         currency: "INR",
         name: "FaasBay",
