@@ -8,7 +8,7 @@ export const API_BASE_URL: string =
   (import.meta.env["VITE_API_URL"] as string)?.replace(/\/$/, "") || "http://localhost:5001";
 
 export const RAZORPAY_KEY_ID: string =
-  (import.meta.env["VITE_RAZORPAY_KEY_ID"] as string) || "rzp_live_TZtCQ5TliFf8T7";
+  (import.meta.env["VITE_RAZORPAY_KEY_ID"] as string) ;
 
 export const API_ENDPOINTS = {
   health: `${API_BASE_URL}/api/health`,
