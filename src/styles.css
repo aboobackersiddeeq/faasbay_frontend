@@ -1,0 +1,212 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design system definition.
+ *
+ * The @theme inline block maps CSS custom properties to Tailwind utility
+ * classes (e.g. --color-primary -> bg-primary, text-primary).
+ *
+ * The :root and .dark blocks define the actual color values using oklch.
+ * All colors MUST use oklch format.
+ *
+ * To add a new semantic color:
+ * 1. Add the variable to :root (light value) and .dark (dark value)
+ * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ */
+
+@theme inline {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-forest: var(--forest);
+  --color-forest-foreground: var(--forest-foreground);
+  --color-sale: var(--sale);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --shadow-pill: 0 1px 2px oklch(0 0 0 / 0.08);
+  --shadow-lift: 0 8px 24px -6px oklch(0 0 0 / 0.12);
+
+  /* FaasBay Signature Brand Colors (#B0CB1F) */
+  --color-brand: #B0CB1F;
+  --color-brand-foreground: #000000;
+  --color-brand-dark: #8fa617;
+  --color-brand-light: #f5f9dd;
+  --color-brand-border: rgba(176, 203, 31, 0.35);
+
+  --color-emerald-50: #f8fad9;
+  --color-emerald-100: #edf4ab;
+  --color-emerald-200: #dfed78;
+  --color-emerald-300: #d0e447;
+  --color-emerald-400: #c1db27;
+  --color-emerald-500: #B0CB1F;
+  --color-emerald-600: #96af16;
+  --color-emerald-700: #7b9012;
+  --color-emerald-800: #627211;
+  --color-emerald-900: #3f4a0c;
+  --color-emerald-950: #242b06;
+}
+
+
+:root {
+  --radius: 0.5rem;
+  --background: oklch(0.988 0.002 90);
+  --foreground: oklch(0.16 0.005 60);
+  --surface: oklch(1 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.16 0.005 60);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.16 0.005 60);
+  --primary: oklch(0.16 0.005 60);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.96 0.003 90);
+  --secondary-foreground: oklch(0.20 0.005 60);
+  --muted: oklch(0.96 0.003 90);
+  --muted-foreground: oklch(0.50 0.008 60);
+  --accent: oklch(0.94 0.004 90);
+  --accent-foreground: oklch(0.16 0.005 60);
+  --forest: oklch(0.26 0.04 160);
+  --forest-foreground: oklch(0.98 0.005 90);
+  --sale: oklch(0.16 0.005 60);
+  --destructive: oklch(0.55 0.19 27);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.925 0.003 90);
+  --input: oklch(0.90 0.004 90);
+  --ring: oklch(0.16 0.005 60);
+}
+
+.dark {
+  --background: oklch(0.12 0.005 60);
+  --foreground: oklch(0.98 0.002 90);
+  --surface: oklch(0.16 0.005 60);
+  --card: oklch(0.16 0.005 60);
+  --card-foreground: oklch(0.98 0.002 90);
+  --popover: oklch(0.16 0.005 60);
+  --popover-foreground: oklch(0.98 0.002 90);
+  --primary: oklch(0.98 0.002 90);
+  --primary-foreground: oklch(0.12 0.005 60);
+  --secondary: oklch(0.22 0.005 60);
+  --secondary-foreground: oklch(0.98 0.002 90);
+  --muted: oklch(0.22 0.005 60);
+  --muted-foreground: oklch(0.65 0.008 60);
+  --accent: oklch(0.24 0.005 60);
+  --accent-foreground: oklch(0.98 0.002 90);
+  --forest: oklch(0.32 0.04 160);
+  --forest-foreground: oklch(0.98 0.005 90);
+  --sale: oklch(0.98 0.002 90);
+  --destructive: oklch(0.62 0.18 27);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.98 0.002 90);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior-y: none;
+    letter-spacing: -0.01em;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+    letter-spacing: -0.025em;
+  }
+
+  /* Optimize tap and touch interactions on mobile */
+  button, a {
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+/* Horizontal carousels: Native App-style swipeable rows with momentum and hidden scrollbar */
+@utility scroll-row {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  & > * {
+    scroll-snap-align: start;
+    flex: 0 0 auto;
+  }
+}
+
+/* App-like bounce / press feedback */
+@utility active-press {
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+/* Infinite continuous auto-scrolling marquee */
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll 32s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+
