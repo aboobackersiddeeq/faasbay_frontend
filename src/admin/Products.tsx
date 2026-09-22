@@ -75,6 +75,7 @@ import {
   deleteProduct as deleteProductApi,
   deleteProducts as deleteProductsApi,
 } from "./shared/product-store";
+import { uploadImageToCloud, uploadImagesToCloud } from "./shared/uploadImage";
 import { API_ENDPOINTS } from "@/config/api";
 
 // Canvas-based image compression helper for smooth uploads and avoiding localStorage quota limits
@@ -414,6 +415,12 @@ export function ProductsList({
 
   // Category & Media
   const [productCategory, setProductCategory] = useState<string>("Fashion & Apparel");
+  const [productStatus, setProductStatus] = useState<"Published" | "Draft" | "Archived">("Draft");
+  // Tracks whether the form has actually changed since it was opened, so the
+  // unsaved-changes prompts (native beforeunload + the in-app modal) only fire
+  // when there's really something to lose.
+  const [isDirty, setIsDirty] = useState(false);
+  const formBaselineRef = React.useRef<string | null>(null);
   const [isFlashDeal, setIsFlashDeal] = useState(false);
   const [freeShipping, setFreeShipping] = useState(false);
 
@@ -685,8 +692,10 @@ export function ProductsList({
         if (!match) return false;
       }
       // Category
+      // Product records may store either the category slug (e.g. "mobile-electronics")
+      // or the display label (e.g. "Mobile & Electronics"), so compare slugified forms.
       if (selectedCategory !== "All Collection") {
-        if (p.category.toLowerCase() !== selectedCategory.toLowerCase()) return false;
+        if (slugify(p.category || "") !== slugify(selectedCategory)) return false;
       }
       // Status
       if (selectedStatus === "Active" && p.status !== "Published") return false;
@@ -754,9 +763,9 @@ export function ProductsList({
       skuCode.trim()
     );
 
-  // BeforeUnload event listener when form has unsaved modifications / is in form mode
+  // BeforeUnload event listener — only while the form actually has unsaved changes
   React.useEffect(() => {
-    if (viewMode !== "form" || isSavingProduct) return;
+    if (viewMode !== "form" || isSavingProduct || !isDirty) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "You have unsaved product changes. Are you sure you want to leave or refresh?";
@@ -764,7 +773,7 @@ export function ProductsList({
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [viewMode, isSavingProduct]);
+  }, [viewMode, isSavingProduct, isDirty]);
 
   // Auto-save form draft to localStorage
   React.useEffect(() => {
@@ -791,6 +800,7 @@ export function ProductsList({
       discountType,
       warrantyInfo,
       productCategory,
+      productStatus,
       isFlashDeal,
       freeShipping,
       codAvailable,
@@ -811,6 +821,18 @@ export function ProductsList({
       isEditing,
       timestamp: Date.now(),
     };
+
+    // Compare against the snapshot taken when the form was opened. `timestamp`
+    // is excluded since it changes on every run regardless of real edits, and
+    // `productStatus` is excluded because its dropdown already saves itself
+    // immediately (see handleProductStatusChange) — it should never trigger the
+    // unsaved-changes prompt.
+    const comparable = JSON.stringify({ ...draftData, timestamp: undefined, productStatus: undefined });
+    if (formBaselineRef.current === null) {
+      formBaselineRef.current = comparable;
+    } else if (formBaselineRef.current !== comparable) {
+      setIsDirty(true);
+    }
 
     try {
       localStorage.setItem("faasbay_product_form_draft", JSON.stringify(draftData));
@@ -838,6 +860,7 @@ export function ProductsList({
     discountType,
     warrantyInfo,
     productCategory,
+    productStatus,
     isFlashDeal,
     freeShipping,
     codAvailable,
@@ -868,15 +891,24 @@ export function ProductsList({
     const editId = params.get("productId");
 
     if (action === "edit" && editId) {
+      // Wait for the catalog to finish loading before giving up on finding the
+      // product — but once resolved (found or not), never re-run this. Without
+      // that guard, any later `products` update (e.g. a save elsewhere resolving
+      // after the admin has already clicked into a different product to edit)
+      // re-reads the *current* URL and misreads an ordinary in-session edit as a
+      // reload-recovered one, reopening the form and popping the discard modal
+      // over work the admin never actually left.
+      if (products.length === 0) return;
+      draftRestoredRef.current = true;
       const loaded = getCachedAdminProducts();
       const target = loaded.find((p) => p.id === editId) || products.find((p) => p.id === editId);
       if (target) {
         openEditProduct(target);
-        setShowDiscardModal(true);
-        draftRestoredRef.current = true;
-        return;
       }
+      return;
     }
+
+    draftRestoredRef.current = true;
 
     if (action === "add" || action === "form") {
       try {
@@ -904,6 +936,7 @@ export function ProductsList({
             setDiscountType(draft.discountType || "None / Regular Price");
             setWarrantyInfo(draft.warrantyInfo || "");
             setProductCategory(draft.productCategory || "All Collection");
+            setProductStatus(draft.productStatus || "Draft");
             setIsFlashDeal(draft.isFlashDeal || false);
             setFreeShipping(draft.freeShipping || false);
             setCodAvailable(draft.codAvailable || false);
@@ -923,6 +956,7 @@ export function ProductsList({
             setGalleryImages(draft.galleryImages || []);
             setIsEditing(draft.isEditing || false);
             setViewMode("form");
+            setIsDirty(true);
             setShowDiscardModal(true);
             draftRestoredRef.current = true;
             return;
@@ -947,9 +981,15 @@ export function ProductsList({
     setShowDiscardModal(false);
     setViewMode("list");
     setIsEditing(false);
+    formBaselineRef.current = null;
+    setIsDirty(false);
   };
 
   const handleRequestCloseForm = () => {
+    if (!isDirty) {
+      handleForceCloseForm();
+      return;
+    }
     setShowDiscardModal(true);
   };
 
@@ -968,6 +1008,24 @@ export function ProductsList({
       toast.error(e?.message || "Could not update the product status.");
       await refreshAdminProducts();
       setProducts(getCachedAdminProducts());
+    }
+  };
+
+  // Status dropdown inside the product form. For an existing product this saves
+  // immediately (it's the only way to reach "Archived" — there's no dedicated
+  // button for it); for a not-yet-saved product it just updates local state.
+  const handleProductStatusChange = async (newStatus: "Published" | "Draft" | "Archived") => {
+    const previous = productStatus;
+    setProductStatus(newStatus);
+    if (!isEditing || !formId) return;
+
+    try {
+      await updateProductApi(formId, { status: newStatus } as Partial<AdminProduct>);
+      setProducts(getCachedAdminProducts());
+      toast.success(`Status changed to ${newStatus}`);
+    } catch (e: any) {
+      setProductStatus(previous);
+      toast.error(e?.message || "Could not update the product status.");
     }
   };
 
@@ -992,6 +1050,7 @@ export function ProductsList({
     setDiscountType("None / Regular Price");
     setWarrantyInfo("");
     setProductCategory("All Collection");
+    setProductStatus("Draft");
     setIsFlashDeal(false);
     setFreeShipping(true);
     setCodAvailable(true);
@@ -1027,6 +1086,8 @@ export function ProductsList({
 
     setIsEditing(false);
     setViewMode("form");
+    formBaselineRef.current = null;
+    setIsDirty(false);
 
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -1122,6 +1183,7 @@ export function ProductsList({
     setDiscountType("Festival Deal");
     setWarrantyInfo(p.warranty || "3 Days Checking Warranty / Replacement");
     setProductCategory(p.category || "Fashion & Apparel");
+    setProductStatus(p.status || "Published");
     setIsFlashDeal(p.isFlashDeal || false);
     setFreeShipping(p.freeShipping ?? true);
 
@@ -1179,6 +1241,8 @@ export function ProductsList({
 
     setIsEditing(true);
     setViewMode("form");
+    formBaselineRef.current = null;
+    setIsDirty(false);
 
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -1294,8 +1358,9 @@ export function ProductsList({
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const url = await compressImageFile(file, 1200, 1200, 0.82);
-      if (url) {
+      const compressed = await compressImageFile(file, 1200, 1200, 0.82);
+      if (compressed) {
+        const url = await uploadImageToCloud(compressed, "products");
         setMainImage(url);
         setGalleryImages((prev) => {
           const filtered = prev.filter((img) => img !== url);
@@ -1306,7 +1371,7 @@ export function ProductsList({
       }
     } catch (err) {
       console.error("Image upload failed:", err);
-      toast.error("Could not process the selected image.");
+      toast.error(err instanceof Error ? err.message : "Could not process the selected image.");
     }
     e.target.value = "";
   };
@@ -1317,7 +1382,8 @@ export function ProductsList({
 
     try {
       const fileList = Array.from(files);
-      const urls = await Promise.all(fileList.map((file) => compressImageFile(file, 1200, 1200, 0.82)));
+      const compressed = await Promise.all(fileList.map((file) => compressImageFile(file, 1200, 1200, 0.82)));
+      const urls = await uploadImagesToCloud(compressed.filter(Boolean), "products");
       const validUrls = urls.filter(Boolean);
 
       if (validUrls.length > 0) {
@@ -1332,7 +1398,7 @@ export function ProductsList({
       }
     } catch (err) {
       console.error("Gallery upload failed:", err);
-      toast.error("Failed to load some images.");
+      toast.error(err instanceof Error ? err.message : "Failed to load some images.");
     }
     e.target.value = "";
   };
@@ -1409,7 +1475,8 @@ export function ProductsList({
     if (!files || files.length === 0) return;
     try {
       const fileList = Array.from(files);
-      const urls = await Promise.all(fileList.map((file) => compressImageFile(file, 800, 800, 0.75)));
+      const compressed = await Promise.all(fileList.map((file) => compressImageFile(file, 800, 800, 0.75)));
+      const urls = await uploadImagesToCloud(compressed.filter(Boolean), "reviews");
       const validUrls = urls.filter(Boolean);
       if (validUrls.length > 0) {
         setReviewImages((prev) => [...prev, ...validUrls]);
@@ -1417,7 +1484,7 @@ export function ProductsList({
       }
     } catch (err) {
       console.error("Review photo upload failed:", err);
-      toast.error("Could not process review image.");
+      toast.error(err instanceof Error ? err.message : "Could not process review image.");
     }
     e.target.value = "";
   };
@@ -1557,6 +1624,8 @@ export function ProductsList({
 
       setViewMode("list");
       setIsEditing(false);
+      formBaselineRef.current = null;
+      setIsDirty(false);
       return true;
     } catch (err: any) {
       console.error("Error saving product:", err);
@@ -2709,8 +2778,8 @@ export function ProductsList({
 
               <div className="space-y-2">
                 <select
-                  value={isEditing ? "Published" : "Draft"}
-                  onChange={(e) => {}}
+                  value={productStatus}
+                  onChange={(e) => handleProductStatusChange(e.target.value as "Published" | "Draft" | "Archived")}
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-slate-400 cursor-pointer"
                 >
                   <option value="Published">Active / Published</option>
@@ -2718,8 +2787,16 @@ export function ProductsList({
                   <option value="Archived">Archived</option>
                 </select>
                 <div className="flex items-center gap-2 text-[11px] text-slate-500 pt-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span>Visible on Online Storefront & Search</span>
+                  <span
+                    className={`w-2 h-2 rounded-full ${productStatus === "Published" ? "bg-emerald-500" : "bg-slate-300"}`}
+                  />
+                  <span>
+                    {productStatus === "Published"
+                      ? "Visible on Online Storefront & Search"
+                      : productStatus === "Draft"
+                        ? "Hidden — not visible to shoppers yet"
+                        : "Archived — hidden from the storefront"}
+                  </span>
                 </div>
               </div>
             </section>
@@ -3413,7 +3490,7 @@ export function ProductsList({
 
         {/* Right segment: Filter button & + Add new product */}
         <div className="flex items-center gap-2.5 shrink-0">
-          <button
+          {/* <button
             onClick={() => setShowFilterDropdown(!showFilterDropdown)}
             className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
               showFilterDropdown
@@ -3423,7 +3500,7 @@ export function ProductsList({
           >
             <Filter size={14} className="text-slate-500" />
             <span>Filter</span>
-          </button>
+          </button> */}
 
           <button
             onClick={openCreateProduct}

@@ -15,12 +15,15 @@ import {
 } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
 import faasbayLogo from "@/assets/faasbay-logo.png";
+import { MyOrdersView } from "./MyOrdersView";
+import { MyAddressesView } from "./MyAddressesView";
 
 export function AuthModal() {
   const { isAuthOpen, closeAuthModal, userProfile, loginUser, logoutUser } = useCart();
   const [tab, setTab] = useState<"login" | "signup">("login");
   const [authMethod, setAuthMethod] = useState<"phone" | "email">("phone");
   const [step, setStep] = useState<"input" | "otp">("input");
+  const [view, setView] = useState<"menu" | "orders" | "addresses">("menu");
 
   // Form states
   const [name, setName] = useState("");
@@ -124,7 +127,10 @@ export function AuthModal() {
           </div>
           <button
             type="button"
-            onClick={closeAuthModal}
+            onClick={() => {
+              closeAuthModal();
+              setView("menu");
+            }}
             className="grid h-8 w-8 place-items-center rounded-full text-neutral-500 hover:bg-secondary active:scale-90 transition-all cursor-pointer"
           >
             <X className="h-4 w-4" />
@@ -133,6 +139,11 @@ export function AuthModal() {
 
         {/* LOGGED IN ACCOUNT VIEW */}
         {userProfile ? (
+          view === "orders" ? (
+            <MyOrdersView phone={userProfile.phone} email={userProfile.email} onBack={() => setView("menu")} />
+          ) : view === "addresses" ? (
+            <MyAddressesView phone={userProfile.phone} email={userProfile.email} onBack={() => setView("menu")} />
+          ) : (
           <div className="p-6 space-y-5">
             <div className="flex items-center gap-3.5 pb-4 border-b border-black/[0.06] dark:border-white/10">
               <div className="grid h-13 w-13 place-items-center rounded-2xl bg-[#B0CB1F] text-slate-950 font-black text-lg shadow-sm">
@@ -154,11 +165,7 @@ export function AuthModal() {
             <div className="space-y-2">
               <button
                 type="button"
-                onClick={() => {
-                  closeAuthModal();
-                  const el = document.getElementById("catalog-section") || document.querySelector("main");
-                  if (el) el.scrollIntoView({ behavior: "smooth" });
-                }}
+                onClick={() => setView("orders")}
                 className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] hover:bg-secondary/40 transition-colors text-left text-xs font-bold text-foreground cursor-pointer"
               >
                 <div className="flex items-center gap-3">
@@ -175,11 +182,7 @@ export function AuthModal() {
 
               <button
                 type="button"
-                onClick={() => {
-                  closeAuthModal();
-                  const el = document.getElementById("catalog-section") || document.querySelector("main");
-                  if (el) el.scrollIntoView({ behavior: "smooth" });
-                }}
+                onClick={() => setView("addresses")}
                 className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] hover:bg-secondary/40 transition-colors text-left text-xs font-bold text-foreground cursor-pointer"
               >
                 <div className="flex items-center gap-3">
@@ -199,6 +202,7 @@ export function AuthModal() {
               type="button"
               onClick={() => {
                 logoutUser();
+                setView("menu");
               }}
               className="w-full min-h-[44px] rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50/50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center justify-center gap-2 hover:bg-rose-100/60 active:scale-95 transition-all cursor-pointer"
             >
@@ -206,6 +210,7 @@ export function AuthModal() {
               <span>Sign Out</span>
             </button>
           </div>
+          )
         ) : (
           /* AUTH LOGIN / SIGNUP FORM */
           <div className="p-6 space-y-4">

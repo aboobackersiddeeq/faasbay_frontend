@@ -1,4 +1,9 @@
-export function renderErrorPage(): string {
+export function renderErrorPage(pathname?: string): string {
+  const isAdminRoute = pathname != null &&
+    (pathname.startsWith("/llp") || pathname.startsWith("/admin"));
+  const homeHref = isAdminRoute ? "/llp" : "/";
+  const homeLabel = isAdminRoute ? "Go to Dashboard" : "Go home";
+
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -22,7 +27,7 @@ export function renderErrorPage(): string {
       <p>Something went wrong on our end. You can try refreshing or head back home.</p>
       <div class="actions">
         <button class="primary" onclick="location.reload()">Try again</button>
-        <a class="secondary" href="/">Go home</a>
+        <a class="secondary" href="${homeHref}">${homeLabel}</a>
       </div>
     </div>
   </body>

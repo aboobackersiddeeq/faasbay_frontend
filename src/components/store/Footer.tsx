@@ -24,7 +24,7 @@ export function Footer() {
             </p>
           </div>
 
-          <div className="lg:col-span-7 flex flex-col justify-center">
+          {/* <div className="lg:col-span-7 flex flex-col justify-center">
             <div className="rounded-2xl bg-secondary/50 p-4 sm:p-5 border border-border">
               <h4 className="font-display font-bold text-sm text-foreground">
                 Join the FaasBay Dispatch
@@ -46,7 +46,7 @@ export function Footer() {
                 </button>
               </form>
             </div>
-          </div>
+          </div> */}
         </div>
 
         {/* 1. DESKTOP Navigation Columns (100% Intact & Untouched) */}

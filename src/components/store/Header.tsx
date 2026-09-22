@@ -152,7 +152,7 @@ export function Header() {
 
         {/* Right: Quick Action Icons */}
         <nav className="flex items-center gap-1">
-          <button
+          {/* <button
             type="button"
             aria-label="Wishlist"
             className="grid h-9 w-9 place-items-center rounded-full text-foreground transition-colors hover:bg-secondary cursor-pointer"
@@ -165,7 +165,7 @@ export function Header() {
             className="grid h-9 w-9 place-items-center rounded-full text-foreground transition-colors hover:bg-secondary cursor-pointer"
           >
             <Bell className="h-[18px] w-[18px]" />
-          </button>
+          </button> */}
           <button
             type="button"
             aria-label="Account"

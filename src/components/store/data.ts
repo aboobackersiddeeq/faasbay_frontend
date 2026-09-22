@@ -173,6 +173,32 @@ export function useAdminProducts() {
   return useRemoteStoreState(adminCatalogStore);
 }
 
+// ── Live collections (admin-managed homepage rows) ──────────────────────────
+
+export interface StoreCollection {
+  id: string;
+  name: string;
+  slug: string;
+  sortOrder: number;
+  status: string;
+}
+
+/** The admin's Collections list (name/order/status) — drives the storefront's
+ * "Trending Now"/"Best Sellers"/etc. row titles and visibility. */
+const collectionsStore = createRemoteStore<StoreCollection[]>([], async () => {
+  const rows = await api.get<StoreCollection[]>(API_ENDPOINTS.collections);
+  return Array.isArray(rows) ? rows : [];
+});
+
+export function useStoreCollections(): StoreCollection[] {
+  return useRemoteStore(collectionsStore);
+}
+
+/** Re-reads collections from the database after an admin edit. */
+export function refreshCollections(): Promise<StoreCollection[]> {
+  return collectionsStore.refresh();
+}
+
 /** Current catalog without subscribing — for non-React call sites. */
 export function getStoreProducts(): Product[] {
   void storefrontStore.load();

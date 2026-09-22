@@ -19,6 +19,11 @@ import { ExitIntentReminder } from "../components/store/ExitIntentReminder";
 import { AuthModal } from "../components/store/AuthModal";
 import { Toaster } from "../components/ui/sonner";
 
+// Absolute site origin for canonical/OG tags. Update VITE_SITE_URL once a
+// custom domain replaces the Netlify subdomain — no other code change needed.
+const SITE_URL: string =
+  (import.meta.env["VITE_SITE_URL"] as string)?.replace(/\/$/, "") || "https://faasbay.netlify.app";
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -48,6 +53,11 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
+  const isAdminRoute = router.state.location.pathname.startsWith("/llp") ||
+    router.state.location.pathname.startsWith("/admin");
+  const homeHref = isAdminRoute ? "/llp" : "/";
+  const homeLabel = isAdminRoute ? "Go to Dashboard" : "Go home";
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
@@ -68,10 +78,10 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             Try again
           </button>
           <a
-            href="/"
+            href={homeHref}
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            Go home
+            {homeLabel}
           </a>
         </div>
       </div>
@@ -90,13 +100,26 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "Official FaasBay Direct Store — Premium wireless audio, mechanical keyboards, titanium wearables, and precision tech gear. Warehoused directly with fast shipping.",
       },
+      { name: "theme-color", content: "#2b4053" },
+      { name: "apple-mobile-web-app-title", content: "FaasBay" },
       { property: "og:title", content: "FaasBay — to cart... to life..." },
       {
         property: "og:description",
         content: "FaasBay — Official direct-to-consumer store for precision gadgets, studio acoustics, and smart lifestyle tech.",
       },
       { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "FaasBay" },
+      { property: "og:image", content: `${SITE_URL}/og-image.png` },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: "FaasBay — to cart... to life..." },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "FaasBay — to cart... to life..." },
+      {
+        name: "twitter:description",
+        content: "FaasBay — Official direct-to-consumer store for precision gadgets, studio acoustics, and smart lifestyle tech.",
+      },
+      { name: "twitter:image", content: `${SITE_URL}/og-image.png` },
     ],
     links: [
       {
@@ -109,7 +132,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&display=swap",
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/favicon.ico", sizes: "any" },
+      { rel: "icon", href: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
+      { rel: "icon", href: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
+      { rel: "manifest", href: "/site.webmanifest" },
     ],
   }),
 

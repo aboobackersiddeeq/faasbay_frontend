@@ -8,7 +8,7 @@ import { DataTable, StatusBadge, PageHeader, SlideOver, ConfirmDialog, Btn, Form
 import type { AdminCollection, CollectionRule } from "./shared/types";
 import { API_ENDPOINTS } from "@/config/api";
 import { api } from "@/lib/api-client";
-import { useStoreProducts } from "@/components/store/data";
+import { useStoreProducts, refreshCollections } from "@/components/store/data";
 
 const blank: AdminCollection = { id: "", name: "", slug: "", description: "", type: "manual", productIds: [], productCount: 0, sortOrder: 0, status: "Draft" };
 
@@ -48,6 +48,7 @@ export default function Collections() {
         await api.post(API_ENDPOINTS.collections, edit);
       }
       await loadCollections();
+      await refreshCollections();
       setDrawerOpen(false);
       setEdit(null);
       toast.success(isExisting ? "Collection updated." : "Collection created.");
@@ -63,6 +64,7 @@ export default function Collections() {
     try {
       await api.delete(`${API_ENDPOINTS.collections}/${encodeURIComponent(target.id)}`);
       await loadCollections();
+      await refreshCollections();
       toast.success(`Deleted "${target.name}".`);
     } catch (e: any) {
       toast.error(e?.message || "Could not delete the collection.");

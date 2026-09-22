@@ -448,7 +448,7 @@ function AdminManagementPortal() {
             />
           </Link>
           <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200/60 shadow-2xs">
-            {adminSession.role.split(" ")[0]}
+            {adminSession.role?.split(" ")[0] ?? "Staff"}
           </span>
         </div>
 
@@ -500,7 +500,7 @@ function AdminManagementPortal() {
         <div className="p-3 border-t border-white/60 bg-white/40 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-full bg-emerald-100 border border-emerald-200 text-emerald-800 flex items-center justify-center text-xs font-bold shrink-0 shadow-2xs">
-              {adminSession.name.charAt(0)}
+              {adminSession.name?.charAt(0) ?? "?"}
             </div>
             <div className="min-w-0 truncate">
               <div className="text-xs font-bold text-slate-800 truncate">{adminSession.name}</div>
@@ -769,7 +769,7 @@ function AdminManagementPortal() {
             {/* FaasBay Admin Profile Badge */}
             <div className="flex items-center gap-2.5 pl-3 border-l border-slate-200/80 shrink-0 select-none">
               <div className="w-8 h-8 rounded-full bg-emerald-100 border border-emerald-200 text-emerald-800 flex items-center justify-center text-xs font-bold shadow-2xs shrink-0">
-                {adminSession.name.charAt(0)}
+                {adminSession.name?.charAt(0) ?? "?"}
               </div>
               <div className="hidden md:flex flex-col text-left shrink-0 whitespace-nowrap">
                 <span className="text-xs font-bold text-slate-900 leading-tight">{adminSession.name}</span>

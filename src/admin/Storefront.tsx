@@ -2,6 +2,7 @@
 // FaasBay Commerce OS — Storefront CMS: Homepage, Banners, Navigation, Pages, Footer
 // ============================================================================
 import React, { useState, useRef, useEffect } from "react";
+import { toast } from "sonner";
 import { Plus, Edit2, Trash2, Eye, EyeOff, GripVertical, Upload, Image as ImageIcon, ExternalLink, Globe, FileText, Link2, Columns, ArrowUp, ArrowDown, Copy } from "lucide-react";
 import { DataTable, StatusBadge, PageHeader, SlideOver, Modal, ConfirmDialog, Btn, FormField, Input, Textarea, Select, Toggle, Card, TabSwitcher } from "./shared/components";
 import type { AdminHomepageSection, AdminBanner, AdminNavLink, AdminPage, AdminFooter } from "./shared/types";
@@ -15,6 +16,7 @@ import {
   StorefrontNavLink,
   StorefrontPageItem,
 } from "@/lib/storefront-cms";
+import { uploadImageToCloud } from "./shared/uploadImage";
 
 // ── Homepage Sections ───────────────────────────────────────────────────────
 
@@ -141,14 +143,21 @@ export function BannersPage() {
   const [editorialDrawerOpen, setEditorialDrawerOpen] = useState(false);
   const [deleteEditorialTarget, setDeleteEditorialTarget] = useState<EditorialCampaignItem | null>(null);
 
-  // File Upload Helper
+  // File Upload Helper — reads the file, uploads it to Cloudinary, and hands the
+  // callback a hosted URL rather than a raw (often multi-MB) base64 data URI.
   const handleFileUpload = (callback: (dataUrl: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       if (typeof ev.target?.result === "string") {
-        callback(ev.target.result);
+        try {
+          const url = await uploadImageToCloud(ev.target.result, "banners");
+          callback(url);
+        } catch (err) {
+          console.error("Banner image upload failed:", err);
+          toast.error(err instanceof Error ? err.message : "Could not upload the image. Please try again.");
+        }
       }
     };
     reader.readAsDataURL(file);

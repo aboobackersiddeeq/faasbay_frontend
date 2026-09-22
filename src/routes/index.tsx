@@ -14,10 +14,43 @@ import { TrustFeatures } from "@/components/store/TrustFeatures";
 import { StudioCampaignBanner } from "@/components/store/StudioCampaignBanner";
 import {
   useStoreProducts,
+  useStoreCollections,
   type Product,
+  type StoreCollection,
 } from "@/components/store/data";
 import { useStorefrontCms } from "@/lib/storefront-cms";
 import { useCart } from "@/hooks/use-cart";
+
+const HOMEPAGE_ROW_LIMIT = 10;
+
+/**
+ * Admin-assigned products (via a product's "Homepage Visibility" toggles) lead
+ * every homepage row; if that assignment doesn't fill the row, the rest of the
+ * catalog fills the remaining slots instead of the row going empty/short.
+ */
+function withAdminPriority(all: Product[], isAssigned: (p: Product) => boolean, limit = HOMEPAGE_ROW_LIMIT): Product[] {
+  const assigned = all.filter(isAssigned);
+  if (assigned.length >= limit) return assigned;
+  const assignedIds = new Set(assigned.map((p) => p.id));
+  const fillers = all.filter((p) => !assignedIds.has(p.id));
+  return [...assigned, ...fillers].slice(0, limit);
+}
+
+/**
+ * Resolves a homepage product row's live title/visibility from the matching
+ * admin Collection (by slug — any of `slugs` matches, since "Today's Flash
+ * Deals" currently folds two seeded collections into one row). Falls back to
+ * the hardcoded default and stays visible if the collection hasn't loaded yet
+ * or doesn't exist, so nothing on the storefront ever depends on Collections
+ * having been set up.
+ */
+function resolveCollectionMeta(collections: StoreCollection[], slugs: string[], fallbackTitle: string) {
+  const match = collections.find((c) => slugs.includes(c.slug));
+  return {
+    title: match?.name || fallbackTitle,
+    visible: match ? match.status === "Active" : true,
+  };
+}
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -43,6 +76,7 @@ export const Route = createFileRoute("/")({
 function Index() {
   const { sections, isSectionVisible } = useStorefrontCms();
   const allStoreProducts = useStoreProducts();
+  const collections = useStoreCollections();
   const {
     selectedCategory,
     setSelectedCategory,
@@ -176,18 +210,22 @@ function Index() {
         return <DualHeroBanner key={sectionId} />;
       case "sec-catnav":
         return <CategoryNav key={sectionId} />;
-      case "sec-curated":
-        return <FeaturedCollectionSection key={sectionId} />;
+      case "sec-curated": {
+        const meta = resolveCollectionMeta(collections, ["new-arrivals"], "New Arrivals");
+        if (!meta.visible) return null;
+        return <FeaturedCollectionSection key={sectionId} title={meta.title} />;
+      }
       case "sec-trending": {
         if (allStoreProducts.length === 0) return null;
-        const trendingItems = allStoreProducts.filter((p) =>
+        const meta = resolveCollectionMeta(collections, ["trending"], "Trending Now");
+        if (!meta.visible) return null;
+        const displayItems = withAdminPriority(allStoreProducts, (p) =>
           Array.isArray(p.collections) && p.collections.includes("trending")
         );
-        const displayItems = trendingItems.length > 0 ? trendingItems : allStoreProducts;
         return (
           <ProductRow
             key={sectionId}
-            title="Trending Now"
+            title={meta.title}
             subtitle="Top rated gear trending on FaasBay this week"
             products={displayItems}
             badgeText="TRENDING NOW"
@@ -197,14 +235,15 @@ function Index() {
       }
       case "sec-bestsellers": {
         if (allStoreProducts.length === 0) return null;
-        const bestSellerItems = allStoreProducts.filter((p) =>
+        const meta = resolveCollectionMeta(collections, ["best-sellers"], "Best Sellers");
+        if (!meta.visible) return null;
+        const displayItems = withAdminPriority(allStoreProducts, (p) =>
           Array.isArray(p.collections) && p.collections.includes("best-sellers")
         );
-        const displayItems = bestSellerItems.length > 0 ? bestSellerItems : allStoreProducts;
         return (
           <ProductRow
             key={sectionId}
-            title="Best Sellers"
+            title={meta.title}
             subtitle="Top rated gear by the FaasBay community this week"
             products={displayItems}
             badgeText="BEST SELLERS"
@@ -216,7 +255,10 @@ function Index() {
         return <AutoSlidingSpotlight key={sectionId} />;
       case "sec-flash": {
         if (allStoreProducts.length === 0) return null;
-        const flashItems = allStoreProducts.filter(
+        const meta = resolveCollectionMeta(collections, ["todays-deals", "hot-deals", "flash-deals"], "Today's Flash Deals");
+        if (!meta.visible) return null;
+        const displayItems = withAdminPriority(
+          allStoreProducts,
           (p) =>
             p.isFlashDeal ||
             (Array.isArray(p.collections) &&
@@ -224,11 +266,10 @@ function Index() {
                 p.collections.includes("hot-deals") ||
                 p.collections.includes("todays-deals")))
         );
-        const displayItems = flashItems.length > 0 ? flashItems : allStoreProducts;
         return (
           <ProductRow
             key={sectionId}
-            title="Today's Flash Deals"
+            title={meta.title}
             subtitle="Direct warehouse inventory with limited-time price drops"
             products={displayItems}
             isDealsSection={true}
@@ -240,14 +281,16 @@ function Index() {
         return <StudioCampaignBanner key={sectionId} />;
       case "sec-desk": {
         if (allStoreProducts.length === 0) return null;
-        const deskItems = allStoreProducts.filter(
+        const meta = resolveCollectionMeta(collections, ["desk-workspace"], "Desk & Workspace Essentials");
+        if (!meta.visible) return null;
+        const displayItems = withAdminPriority(
+          allStoreProducts,
           (p) => Array.isArray(p.collections) && p.collections.includes("desk-workspace")
         );
-        const displayItems = deskItems.length > 0 ? deskItems : allStoreProducts;
         return (
           <ProductRow
             key={sectionId}
-            title="Desk & Workspace Essentials"
+            title={meta.title}
             subtitle="Minimalist charging docks, precision tools, and ergonomic productivity tech"
             products={displayItems}
             badgeText="WORK & PRODUCTIVITY"

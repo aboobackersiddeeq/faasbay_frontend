@@ -4,17 +4,19 @@ import { ProductCard } from "./ProductCard";
 import { useStoreProducts } from "./data";
 import { useCart } from "@/hooks/use-cart";
 
-export function FeaturedCollectionSection() {
+export function FeaturedCollectionSection({ title = "New Arrivals" }: { title?: string }) {
   const { setQuickNavFilter } = useCart();
   // All available catalog products from live state
   const allProducts = useStoreProducts();
 
-  // Products tagged with new-arrivals or fallback to all active products
+  // Admin-tagged "new-arrivals" products lead the row; the rest of the catalog
+  // fills any remaining slots instead of the row being all-or-nothing.
   const displayProducts = useMemo(() => {
-    const tagged = allProducts.filter(
-      (p) => Array.isArray(p.collections) && p.collections.includes("new-arrivals")
-    );
-    return tagged.length > 0 ? tagged : allProducts;
+    const tagged = allProducts.filter((p) => Array.isArray(p.collections) && p.collections.includes("new-arrivals"));
+    if (tagged.length >= 10) return tagged;
+    const taggedIds = new Set(tagged.map((p) => p.id));
+    const fillers = allProducts.filter((p) => !taggedIds.has(p.id));
+    return [...tagged, ...fillers];
   }, [allProducts]);
 
   // Gracefully hide section if catalog is empty
@@ -38,7 +40,7 @@ export function FeaturedCollectionSection() {
         {/* Title */}
         <div className="flex items-center gap-2">
           <h2 className="font-display text-xl sm:text-2xl lg:text-[26px] font-black text-neutral-900 dark:text-white tracking-tight leading-none">
-            New Arrivals
+            {title}
           </h2>
           <span className="hidden sm:inline-flex items-center gap-1 rounded-[4px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10.5px] font-bold text-slate-700 dark:text-slate-300">
             <Sparkles className="h-3 w-3" />

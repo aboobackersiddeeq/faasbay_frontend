@@ -23,8 +23,12 @@ export const API_ENDPOINTS = {
   categories: `${API_BASE_URL}/api/categories`,
   collections: `${API_BASE_URL}/api/collections`,
 
+  // Media
+  upload: `${API_BASE_URL}/api/upload`,
+
   // Orders & payments
   orders: `${API_BASE_URL}/api/orders`,
+  myOrders: `${API_BASE_URL}/api/orders/mine`,
   razorpayCreateOrder: `${API_BASE_URL}/api/orders/razorpay/create-order`,
   razorpayVerify: `${API_BASE_URL}/api/orders/razorpay/verify-payment`,
 
@@ -40,6 +44,8 @@ export const API_ENDPOINTS = {
 
   // People
   customers: `${API_BASE_URL}/api/customers`,
+  customerLookup: `${API_BASE_URL}/api/customers/lookup`,
+  customerAddresses: `${API_BASE_URL}/api/customers/lookup/addresses`,
   reviews: `${API_BASE_URL}/api/reviews`,
   inquiries: `${API_BASE_URL}/api/inquiries`,
   supportTickets: `${API_BASE_URL}/api/support-tickets`,
