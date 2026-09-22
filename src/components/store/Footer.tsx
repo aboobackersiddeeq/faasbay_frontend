@@ -8,19 +8,15 @@ export function Footer() {
   return (
     <footer className="mt-8 sm:mt-12 border-t border-border bg-surface text-foreground pb-20 sm:pb-10">
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 pt-8 sm:pt-10">
-        
         {/* Top Newsletter & Brand Statement */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 pb-8 sm:pb-10 border-b border-border">
           <div className="lg:col-span-5 space-y-3">
             <a href="/" className="inline-block">
-              <img
-                src={faasbayLogo}
-                alt="FaasBay"
-                className="h-8 w-auto object-contain"
-              />
+              <img src={faasbayLogo} alt="FaasBay" className="h-8 w-auto object-contain" />
             </a>
             <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed max-w-sm">
-              {footerData?.description || "Direct-to-consumer precision gadgets, studio acoustics, and smart lifestyle tech. Designed with care, warehoused directly, and backed by our 1-year guarantee."}
+              {footerData?.description ||
+                "Direct-to-consumer precision gadgets, studio acoustics, and smart lifestyle tech. Designed with care, warehoused directly, and backed by our 1-year guarantee."}
             </p>
           </div>
 
@@ -82,7 +78,9 @@ export function Footer() {
             <details key={col.id || col.title || idx} className="group py-2.5">
               <summary className="flex items-center justify-between text-xs font-bold text-foreground cursor-pointer list-none select-none">
                 <span>{col.title}</span>
-                <span className="text-muted-foreground transition-transform duration-200 group-open:rotate-180">▾</span>
+                <span className="text-muted-foreground transition-transform duration-200 group-open:rotate-180">
+                  ▾
+                </span>
               </summary>
               <ul className="pt-2.5 pb-1 space-y-2 pl-1 animate-in fade-in duration-200">
                 {col.links.map((l, li) => {
@@ -108,21 +106,23 @@ export function Footer() {
         <div className="pt-6 sm:pt-8 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 text-[11px] sm:text-xs text-muted-foreground text-center sm:text-left">
           <div className="flex items-center gap-3 sm:gap-4 flex-wrap justify-center sm:justify-start">
             <span className="flex items-center gap-1.5 font-medium">
-              <ShieldCheck className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-400" /> 100% Authentic Products
+              <ShieldCheck className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-400" /> 100%
+              Authentic Products
             </span>
             <span className="flex items-center gap-1.5 font-medium">
-              <Lock className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-400" /> 256-Bit SSL Checkout
+              <Lock className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-400" /> 256-Bit SSL
+              Checkout
             </span>
           </div>
 
           <div className="flex items-center gap-3 sm:gap-4 flex-wrap justify-center sm:justify-end">
-            <span>{footerData?.copyright || "© 2026 FaasBay Direct Store. All rights reserved."}</span>
+            <span>
+              {footerData?.copyright || "© 2026 FaasBay Direct Store. All rights reserved."}
+            </span>
             <span className="font-bold text-foreground">India (INR ₹)</span>
           </div>
         </div>
-
       </div>
     </footer>
   );
 }
-

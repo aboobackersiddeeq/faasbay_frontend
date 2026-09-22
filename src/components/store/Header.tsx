@@ -62,7 +62,8 @@ export function Header() {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchTerm.trim()) return;
-    const catalogElement = document.getElementById("catalog-section") || document.getElementById("categories");
+    const catalogElement =
+      document.getElementById("catalog-section") || document.getElementById("categories");
     if (catalogElement) {
       catalogElement.scrollIntoView({ behavior: "smooth" });
     }
@@ -74,7 +75,8 @@ export function Header() {
     if (id !== "all") {
       recordCategoryView(id);
     }
-    const catalogElement = document.getElementById("catalog-section") || document.getElementById("categories");
+    const catalogElement =
+      document.getElementById("catalog-section") || document.getElementById("categories");
     if (catalogElement) {
       catalogElement.scrollIntoView({ behavior: "smooth" });
     }
@@ -91,22 +93,97 @@ export function Header() {
 
   const categories = [
     { id: "all", label: "All Products", icon: Layers, desc: "Explore entire catalogue" },
-    { id: "mobile-electronics", label: "Mobile & Electronics", icon: Smartphone, desc: "Smartphones, chargers & accessories" },
-    { id: "audio-speakers", label: "Audio & Speakers", icon: Headphones, desc: "Studio acoustics & wireless audio" },
-    { id: "car-accessories", label: "Car Accessories", icon: Car, desc: "Dashboard mounts, chargers & tech" },
-    { id: "home-cleaning", label: "Home Cleaning & Appliances", icon: Sparkles, desc: "Vacuum, sprays & smart cleaners" },
-    { id: "health-wellness", label: "Health, Wellness & Massage", icon: HeartPulse, desc: "Massagers & relaxation essentials" },
-    { id: "beauty-personal-care", label: "Beauty & Personal Care", icon: Smile, desc: "Grooming, skincare & haircare" },
-    { id: "kitchen-dining", label: "Kitchen & Dining", icon: UtensilsCrossed, desc: "Cookware, organizers & dinnerware" },
-    { id: "lighting", label: "Lights & Home Lighting", icon: Lightbulb, desc: "Ambient LEDs & modern lamps" },
+    {
+      id: "mobile-electronics",
+      label: "Mobile & Electronics",
+      icon: Smartphone,
+      desc: "Smartphones, chargers & accessories",
+    },
+    {
+      id: "audio-speakers",
+      label: "Audio & Speakers",
+      icon: Headphones,
+      desc: "Studio acoustics & wireless audio",
+    },
+    {
+      id: "car-accessories",
+      label: "Car Accessories",
+      icon: Car,
+      desc: "Dashboard mounts, chargers & tech",
+    },
+    {
+      id: "home-cleaning",
+      label: "Home Cleaning & Appliances",
+      icon: Sparkles,
+      desc: "Vacuum, sprays & smart cleaners",
+    },
+    {
+      id: "health-wellness",
+      label: "Health, Wellness & Massage",
+      icon: HeartPulse,
+      desc: "Massagers & relaxation essentials",
+    },
+    {
+      id: "beauty-personal-care",
+      label: "Beauty & Personal Care",
+      icon: Smile,
+      desc: "Grooming, skincare & haircare",
+    },
+    {
+      id: "kitchen-dining",
+      label: "Kitchen & Dining",
+      icon: UtensilsCrossed,
+      desc: "Cookware, organizers & dinnerware",
+    },
+    {
+      id: "lighting",
+      label: "Lights & Home Lighting",
+      icon: Lightbulb,
+      desc: "Ambient LEDs & modern lamps",
+    },
     { id: "kids-toys", label: "Kids & Toys", icon: Gamepad2, desc: "Educational toys & play sets" },
-    { id: "watches-fashion", label: "Watches & Fashion Accessories", icon: Watch, desc: "Luxury watches, bands & accessories" },
-    { id: "storage-organizers", label: "Storage & Organizers", icon: Box, desc: "Modular drawer & closet bins" },
-    { id: "travel-products", label: "Travel Products", icon: Luggage, desc: "Suitcases, backpacks & travel gear" },
-    { id: "home-lifestyle", label: "Home & Lifestyle", icon: Home, desc: "Modern home decor & living essentials" },
-    { id: "pest-control", label: "Pest Control", icon: ShieldAlert, desc: "Ultrasonic repellers & safe pest solutions" },
-    { id: "stationery-office", label: "Stationery & Office", icon: BookOpen, desc: "Desk journals, organizers & pens" },
-    { id: "utility-tools", label: "Utility & Tools", icon: Wrench, desc: "Multi-tools, hardware & DIY gear" },
+    {
+      id: "watches-fashion",
+      label: "Watches & Fashion Accessories",
+      icon: Watch,
+      desc: "Luxury watches, bands & accessories",
+    },
+    {
+      id: "storage-organizers",
+      label: "Storage & Organizers",
+      icon: Box,
+      desc: "Modular drawer & closet bins",
+    },
+    {
+      id: "travel-products",
+      label: "Travel Products",
+      icon: Luggage,
+      desc: "Suitcases, backpacks & travel gear",
+    },
+    {
+      id: "home-lifestyle",
+      label: "Home & Lifestyle",
+      icon: Home,
+      desc: "Modern home decor & living essentials",
+    },
+    {
+      id: "pest-control",
+      label: "Pest Control",
+      icon: ShieldAlert,
+      desc: "Ultrasonic repellers & safe pest solutions",
+    },
+    {
+      id: "stationery-office",
+      label: "Stationery & Office",
+      icon: BookOpen,
+      desc: "Desk journals, organizers & pens",
+    },
+    {
+      id: "utility-tools",
+      label: "Utility & Tools",
+      icon: Wrench,
+      desc: "Multi-tools, hardware & DIY gear",
+    },
   ];
 
   const INITIAL_CATEGORY_COUNT = 6; // Shows All Products + first 5 categories
@@ -229,7 +306,9 @@ export function Header() {
             <button
               type="button"
               onClick={() => {
-                const el = document.getElementById("catalog-section") || document.getElementById("categories");
+                const el =
+                  document.getElementById("catalog-section") ||
+                  document.getElementById("categories");
                 if (el) el.scrollIntoView({ behavior: "smooth" });
               }}
               aria-label="Wishlist"
@@ -358,7 +437,9 @@ export function Header() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-foreground">Welcome to FaasBay</p>
-                        <p className="text-[10px] text-muted-foreground">Sign in for orders & fast checkout</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Sign in for orders & fast checkout
+                        </p>
                       </div>
                     </div>
                     <button
