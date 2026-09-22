@@ -314,18 +314,18 @@ function AdminManagementPortal() {
           icon: <ImageIcon size={15} />,
           subSummary: "Hero Banners, Homepage Sections, CMS Pages, Footer",
         },
-        {
-          key: "finance",
-          label: "Finance",
-          icon: <DollarSign size={15} />,
-          subSummary: "Transactions, Tax Invoices, GST Config",
-        },
-        {
-          key: "analytics",
-          label: "Analytics",
-          icon: <BarChart3 size={15} />,
-          subSummary: "Sales Reports, Product Performance, Customer Cohorts",
-        },
+        // {
+        //   key: "finance",
+        //   label: "Finance",
+        //   icon: <DollarSign size={15} />,
+        //   subSummary: "Transactions, Tax Invoices, GST Config",
+        // },
+        // {
+        //   key: "analytics",
+        //   label: "Analytics",
+        //   icon: <BarChart3 size={15} />,
+        //   subSummary: "Sales Reports, Product Performance, Customer Cohorts",
+        // },
       ],
     },
     {
