@@ -38,6 +38,7 @@ import {
 import faasbayLogo from "@/assets/faasbay-logo.png";
 import { HeaderQuickNav } from "./HeaderQuickNav";
 import { useCart } from "@/hooks/use-cart";
+import { scrollToSection } from "@/lib/scroll-to-section";
 
 export function Header() {
   const {
@@ -62,11 +63,7 @@ export function Header() {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchTerm.trim()) return;
-    const catalogElement =
-      document.getElementById("catalog-section") || document.getElementById("categories");
-    if (catalogElement) {
-      catalogElement.scrollIntoView({ behavior: "smooth" });
-    }
+    scrollToSection(["catalog-section", "categories"]);
   };
 
   const handleCategoryClick = (id: string) => {
@@ -75,11 +72,7 @@ export function Header() {
     if (id !== "all") {
       recordCategoryView(id);
     }
-    const catalogElement =
-      document.getElementById("catalog-section") || document.getElementById("categories");
-    if (catalogElement) {
-      catalogElement.scrollIntoView({ behavior: "smooth" });
-    }
+    scrollToSection(["catalog-section", "categories"]);
   };
 
   const filterChips = [
@@ -305,12 +298,7 @@ export function Header() {
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => {
-                const el =
-                  document.getElementById("catalog-section") ||
-                  document.getElementById("categories");
-                if (el) el.scrollIntoView({ behavior: "smooth" });
-              }}
+              onClick={() => scrollToSection(["catalog-section", "categories"])}
               aria-label="Wishlist"
               className="grid h-9 w-9 place-items-center rounded-xl bg-secondary/60 text-foreground active:scale-90 transition-all cursor-pointer border border-border/40"
             >

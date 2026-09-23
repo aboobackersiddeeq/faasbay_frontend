@@ -9,17 +9,12 @@ export function FeaturedCollectionSection({ title = "New Arrivals" }: { title?: 
   // All available catalog products from live state
   const allProducts = useStoreProducts();
 
-  // Admin-tagged "new-arrivals" products lead the row; the rest of the catalog
-  // fills any remaining slots instead of the row being all-or-nothing.
+  // Only products explicitly tagged "new-arrivals" in admin show here.
   const displayProducts = useMemo(() => {
-    const tagged = allProducts.filter((p) => Array.isArray(p.collections) && p.collections.includes("new-arrivals"));
-    if (tagged.length >= 10) return tagged;
-    const taggedIds = new Set(tagged.map((p) => p.id));
-    const fillers = allProducts.filter((p) => !taggedIds.has(p.id));
-    return [...tagged, ...fillers];
+    return allProducts.filter((p) => Array.isArray(p.collections) && p.collections.includes("new-arrivals"));
   }, [allProducts]);
 
-  // Gracefully hide section if catalog is empty
+  // Hide the section entirely if nothing is assigned in admin
   if (displayProducts.length === 0) {
     return null;
   }

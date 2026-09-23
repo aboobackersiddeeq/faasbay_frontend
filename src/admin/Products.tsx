@@ -1,7 +1,8 @@
 // ============================================================================
 // FaasBay Commerce OS — Products Management (Salesai UI Matching Design)
 // ============================================================================
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
   Plus,
@@ -50,6 +51,7 @@ import {
   Package,
   Boxes,
   Layers,
+  Home,
 } from "lucide-react";
 import {
   ConfirmDialog,
@@ -77,6 +79,16 @@ import {
 } from "./shared/product-store";
 import { uploadImageToCloud, uploadImagesToCloud } from "./shared/uploadImage";
 import { API_ENDPOINTS } from "@/config/api";
+
+// The homepage rows a product can be assigned to. Shared by the full edit
+// form and the fast inline toggle in the product list.
+const HOMEPAGE_COLLECTIONS = [
+  { id: "trending", label: "Trending Now" },
+  { id: "new-arrivals", label: "New Arrivals" },
+  { id: "best-sellers", label: "Best Sellers" },
+  { id: "hot-deals", label: "Flash Deals" },
+  { id: "desk-workspace", label: "Desk & Workspace" },
+];
 
 // Canvas-based image compression helper for smooth uploads and avoiding localStorage quota limits
 const compressImageFile = (file: File, maxWidth = 720, maxHeight = 720, quality = 0.72): Promise<string> => {
@@ -278,6 +290,38 @@ export function ProductsList({
   const [deleteTarget, setDeleteTarget] = useState<AdminProduct | null>(null);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<{ tab: string; subTab?: string } | null>(null);
+  // Position captured from the trigger button so the popover can be portaled to
+  // <body> and rendered with fixed coordinates — the table wrapper clips
+  // absolutely-positioned children (overflow-hidden/overflow-x-auto), which was
+  // cutting the popover off whenever a row had little/no space below it.
+  const [homepagePopoverAnchor, setHomepagePopoverAnchor] = useState<{ id: string; top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!homepagePopoverAnchor) return;
+    const close = () => setHomepagePopoverAnchor(null);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [homepagePopoverAnchor]);
+
+  // Same portal-anchored popover pattern, but for the bulk-selection toolbar
+  // action — lets staff set homepage visibility for every selected product at
+  // once instead of one row at a time.
+  const [bulkHomepagePopoverAnchor, setBulkHomepagePopoverAnchor] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!bulkHomepagePopoverAnchor) return;
+    const close = () => setBulkHomepagePopoverAnchor(null);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [bulkHomepagePopoverAnchor]);
   const draftRestoredRef = React.useRef(false);
 
   React.useEffect(() => {
@@ -333,6 +377,7 @@ export function ProductsList({
   const [selectedCategory, setSelectedCategory] = useState("All Collection");
   const [selectedStatus, setSelectedStatus] = useState("All Status");
   const [selectedBrand, setSelectedBrand] = useState("All Brands");
+  const [selectedHomepageFilter, setSelectedHomepageFilter] = useState("All Homepage");
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [sortBy, setSortBy] = useState("Default");
   const [showProductLimit, setShowProductLimit] = useState("All Products");
@@ -704,6 +749,18 @@ export function ProductsList({
       // Brand
       if (selectedBrand !== "All Brands" && p.brand !== selectedBrand) return false;
 
+      // Homepage visibility
+      if (selectedHomepageFilter === "On Homepage" && (p.collections || []).length === 0) return false;
+      if (selectedHomepageFilter === "Not on Homepage" && (p.collections || []).length > 0) return false;
+      if (
+        selectedHomepageFilter !== "All Homepage" &&
+        selectedHomepageFilter !== "On Homepage" &&
+        selectedHomepageFilter !== "Not on Homepage" &&
+        !(p.collections || []).includes(selectedHomepageFilter)
+      ) {
+        return false;
+      }
+
       // Show limit / Stock filter
       if (showProductLimit === "In Stock" && p.stock <= 0) return false;
       if (showProductLimit === "Low Stock" && p.stock > 5) return false;
@@ -747,6 +804,51 @@ export function ProductsList({
       if (failed.length > 0) toast.error(`${failed.length} product(s) could not be deleted.`);
     } catch (e: any) {
       toast.error(e?.message || "Could not delete the selected products.");
+    }
+  };
+
+  // Bulk homepage visibility toggle: applied across every currently selected
+  // product. If every selected product already has the row, this clears it
+  // for all of them; otherwise it adds the row to all of them (matching the
+  // tri-state "select all" behavior used elsewhere in this list).
+  const bulkUpdateHomepageCollection = async (colId: string) => {
+    const ids = Array.from(selectedRows);
+    if (ids.length === 0) return;
+    const selected = products.filter((p) => selectedRows.has(p.id));
+    const allHaveIt = selected.every((p) => (p.collections || []).includes(colId));
+
+    const nextCollectionsById = new Map(
+      selected.map((p) => {
+        const current = p.collections || [];
+        const next = allHaveIt
+          ? current.filter((c) => c !== colId)
+          : current.includes(colId)
+          ? current
+          : [...current, colId];
+        return [p.id, next];
+      })
+    );
+
+    setProducts(
+      products.map((p) => (nextCollectionsById.has(p.id) ? { ...p, collections: nextCollectionsById.get(p.id)! } : p))
+    );
+
+    const label = HOMEPAGE_COLLECTIONS.find((c) => c.id === colId)?.label || colId;
+
+    try {
+      await Promise.all(
+        ids.map((id) => updateProductApi(id, { collections: nextCollectionsById.get(id) } as Partial<AdminProduct>))
+      );
+      setProducts(getCachedAdminProducts());
+      toast.success(
+        allHaveIt
+          ? `Removed ${ids.length} product${ids.length > 1 ? "s" : ""} from ${label}.`
+          : `Added ${ids.length} product${ids.length > 1 ? "s" : ""} to ${label}.`
+      );
+    } catch (e: any) {
+      toast.error(e?.message || "Could not update homepage visibility for the selected products.");
+      await refreshAdminProducts();
+      setProducts(getCachedAdminProducts());
     }
   };
 
@@ -1006,6 +1108,28 @@ export function ProductsList({
       setProducts(getCachedAdminProducts());
     } catch (e: any) {
       toast.error(e?.message || "Could not update the product status.");
+      await refreshAdminProducts();
+      setProducts(getCachedAdminProducts());
+    }
+  };
+
+  // Fast per-row homepage section toggle from the product list, without opening
+  // the full edit form.
+  const toggleProductHomepageCollection = async (id: string, colId: string) => {
+    const current = products.find((p) => p.id === id);
+    if (!current) return;
+    const currentCollections = current.collections || [];
+    const nextCollections = currentCollections.includes(colId)
+      ? currentCollections.filter((c) => c !== colId)
+      : [...currentCollections, colId];
+
+    setProducts(products.map((p) => (p.id === id ? { ...p, collections: nextCollections } : p)));
+
+    try {
+      await updateProductApi(id, { collections: nextCollections } as Partial<AdminProduct>);
+      setProducts(getCachedAdminProducts());
+    } catch (e: any) {
+      toast.error(e?.message || "Could not update homepage visibility.");
       await refreshAdminProducts();
       setProducts(getCachedAdminProducts());
     }
@@ -2851,7 +2975,7 @@ export function ProductsList({
                   <button
                     type="button"
                     onClick={() => {
-                      const allKeys = ["trending", "new-arrivals", "best-sellers", "hot-deals", "desk-workspace"];
+                      const allKeys = HOMEPAGE_COLLECTIONS.map((c) => c.id);
                       if (selectedCollections.length === allKeys.length) {
                         setSelectedCollections([]);
                       } else {
@@ -2868,13 +2992,7 @@ export function ProductsList({
                 </p>
 
                 <div className="grid grid-cols-2 gap-1.5 pt-1">
-                  {[
-                    { id: "trending", label: "Trending Now" },
-                    { id: "new-arrivals", label: "New Arrivals" },
-                    { id: "best-sellers", label: "Best Sellers" },
-                    { id: "hot-deals", label: "Flash Deals" },
-                    { id: "desk-workspace", label: "Desk & Workspace" },
-                  ].map((col) => {
+                  {HOMEPAGE_COLLECTIONS.map((col) => {
                     const active = selectedCollections.includes(col.id);
                     return (
                       <button
@@ -3567,6 +3685,28 @@ export function ProductsList({
             <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           </div>
         </div>
+
+        {/* 5. Homepage Visibility Filter */}
+        <div className="space-y-1">
+          <label className="text-[11px] font-bold text-slate-600">Homepage</label>
+          <div className="relative">
+            <select
+              value={selectedHomepageFilter}
+              onChange={(e) => setSelectedHomepageFilter(e.target.value)}
+              className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white appearance-none pr-8 cursor-pointer"
+            >
+              <option value="All Homepage">All Products</option>
+              <option value="On Homepage">On Homepage (Any Row)</option>
+              <option value="Not on Homepage">Not on Homepage</option>
+              {HOMEPAGE_COLLECTIONS.map((col) => (
+                <option key={col.id} value={col.id}>
+                  {col.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          </div>
+        </div>
       </div>
 
       {/* ── Table View (Exact Salesai Matching Design) ── */}
@@ -3618,6 +3758,22 @@ export function ProductsList({
                           </span>
                           <button
                             type="button"
+                            onClick={(e) => {
+                              if (bulkHomepagePopoverAnchor) {
+                                setBulkHomepagePopoverAnchor(null);
+                                return;
+                              }
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setBulkHomepagePopoverAnchor({ top: rect.bottom + 6, left: rect.left });
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all cursor-pointer"
+                            title="Set homepage visibility for selected products"
+                          >
+                            <Home size={10} />
+                            <span>Homepage ({selectedRows.size})</span>
+                          </button>
+                          <button
+                            type="button"
                             onClick={handleBulkDelete}
                             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-all cursor-pointer"
                             title="Delete selected products"
@@ -3632,6 +3788,53 @@ export function ProductsList({
                           >
                             Clear
                           </button>
+
+                          {bulkHomepagePopoverAnchor &&
+                            typeof document !== "undefined" &&
+                            createPortal(
+                              <>
+                                <div
+                                  className="fixed inset-0 z-40"
+                                  onClick={() => setBulkHomepagePopoverAnchor(null)}
+                                />
+                                <div
+                                  className="fixed z-50 w-64 bg-white rounded-xl border border-slate-200 shadow-lg p-2 space-y-1"
+                                  style={{ top: bulkHomepagePopoverAnchor.top, left: bulkHomepagePopoverAnchor.left }}
+                                >
+                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1.5 pb-1">
+                                    Set homepage rows for {selectedRows.size} selected:
+                                  </div>
+                                  {HOMEPAGE_COLLECTIONS.map((col) => {
+                                    const selected = products.filter((p) => selectedRows.has(p.id));
+                                    const allHaveIt = selected.every((p) => (p.collections || []).includes(col.id));
+                                    const someHaveIt = selected.some((p) => (p.collections || []).includes(col.id));
+                                    return (
+                                      <button
+                                        key={col.id}
+                                        type="button"
+                                        onClick={() => bulkUpdateHomepageCollection(col.id)}
+                                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                                          allHaveIt
+                                            ? "bg-slate-900 text-white"
+                                            : someHaveIt
+                                            ? "bg-emerald-50 text-emerald-700"
+                                            : "text-slate-600 hover:bg-slate-100"
+                                        }`}
+                                        title={allHaveIt ? `Remove ${col.label} from all selected` : `Add ${col.label} to all selected`}
+                                      >
+                                        <span>{col.label}</span>
+                                        {allHaveIt ? (
+                                          <Check size={12} strokeWidth={3} />
+                                        ) : someHaveIt ? (
+                                          <Minus size={12} strokeWidth={3} />
+                                        ) : null}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </>,
+                              document.body
+                            )}
                         </div>
                       ) : (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-extrabold bg-slate-100 text-slate-600 border border-slate-200/80">
@@ -3652,6 +3855,9 @@ export function ProductsList({
                       <ArrowUpDown size={12} className="text-slate-400" />
                     </div>
                   </th>
+                  <th className="py-3.5 px-4 font-bold text-slate-500">
+                    <span>Homepage</span>
+                  </th>
                   <th className="py-3.5 px-4 font-bold text-slate-500 text-right pr-6">
                     <span>Active</span>
                   </th>
@@ -3660,7 +3866,7 @@ export function ProductsList({
               <tbody className="divide-y divide-slate-100">
                 {filteredProducts.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-16 text-center text-xs text-slate-400">
+                    <td colSpan={6} className="py-16 text-center text-xs text-slate-400">
                       No matching products found.
                     </td>
                   </tr>
@@ -3749,6 +3955,68 @@ export function ProductsList({
                               </div>
                             </div>
                           </div>
+                        </td>
+
+                        {/* 4b. Fast Homepage Visibility Toggle */}
+                        <td className="py-4 px-4 relative">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              if (homepagePopoverAnchor?.id === p.id) {
+                                setHomepagePopoverAnchor(null);
+                                return;
+                              }
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setHomepagePopoverAnchor({ id: p.id, top: rect.bottom + 6, left: rect.left });
+                            }}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-colors cursor-pointer ${
+                              (p.collections || []).length > 0
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                : "bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100"
+                            }`}
+                            title="Choose which homepage rows this product appears in"
+                          >
+                            <Home size={12} />
+                            {(p.collections || []).length > 0 ? `${p.collections.length} row${p.collections.length > 1 ? "s" : ""}` : "Hidden"}
+                          </button>
+
+                          {homepagePopoverAnchor?.id === p.id &&
+                            typeof document !== "undefined" &&
+                            createPortal(
+                              <>
+                                <div
+                                  className="fixed inset-0 z-40"
+                                  onClick={() => setHomepagePopoverAnchor(null)}
+                                />
+                                <div
+                                  className="fixed z-50 w-56 bg-white rounded-xl border border-slate-200 shadow-lg p-2 space-y-1"
+                                  style={{ top: homepagePopoverAnchor.top, left: homepagePopoverAnchor.left }}
+                                >
+                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1.5 pb-1">
+                                    Show on homepage in:
+                                  </div>
+                                  {HOMEPAGE_COLLECTIONS.map((col) => {
+                                    const active = (p.collections || []).includes(col.id);
+                                    return (
+                                      <button
+                                        key={col.id}
+                                        type="button"
+                                        onClick={() => toggleProductHomepageCollection(p.id, col.id)}
+                                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                                          active
+                                            ? "bg-slate-900 text-white"
+                                            : "text-slate-600 hover:bg-slate-100"
+                                        }`}
+                                      >
+                                        <span>{col.label}</span>
+                                        {active && <Check size={12} strokeWidth={3} />}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </>,
+                              document.body
+                            )}
                         </td>
 
                         {/* 5. Active Toggle Switch & Actions */}

@@ -1,11 +1,11 @@
 // ============================================================================
 // FaasBay Commerce OS — Storefront CMS: Homepage, Banners, Navigation, Pages, Footer
 // ============================================================================
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { toast } from "sonner";
-import { Plus, Edit2, Trash2, Eye, EyeOff, GripVertical, Upload, Image as ImageIcon, ExternalLink, Globe, FileText, Link2, Columns, ArrowUp, ArrowDown, Copy } from "lucide-react";
-import { DataTable, StatusBadge, PageHeader, SlideOver, Modal, ConfirmDialog, Btn, FormField, Input, Textarea, Select, Toggle, Card, TabSwitcher } from "./shared/components";
-import type { AdminHomepageSection, AdminBanner, AdminNavLink, AdminPage, AdminFooter } from "./shared/types";
+import { Plus, Edit2, Trash2, Eye, EyeOff, GripVertical, Upload, Image as ImageIcon, ExternalLink, Globe, FileText, Link2, Columns, ArrowUp, ArrowDown, Copy, ListChecks, Search, Check } from "lucide-react";
+import { DataTable, StatusBadge, PageHeader, SlideOver, Modal, ConfirmDialog, Btn, FormField, Input, Textarea, Select, Toggle, Card, TabSwitcher, formatCurrency } from "./shared/components";
+import type { AdminHomepageSection, AdminBanner, AdminNavLink, AdminPage, AdminFooter, AdminProduct } from "./shared/types";
 import {
   useStorefrontCms,
   DualHeroSlidePair,
@@ -17,12 +17,29 @@ import {
   StorefrontPageItem,
 } from "@/lib/storefront-cms";
 import { uploadImageToCloud } from "./shared/uploadImage";
+import {
+  getCachedAdminProducts,
+  isCatalogLoaded,
+  loadAdminProducts,
+  bulkUpdateProducts,
+} from "./shared/product-store";
+
+// The product-slider homepage sections that can be populated from a fast
+// searchable product picker, mapped to the product "collections" tag they read.
+const SECTION_PRODUCT_COLLECTIONS: Record<string, { key: string; label: string }> = {
+  "sec-curated": { key: "new-arrivals", label: "New Arrivals" },
+  "sec-trending": { key: "trending", label: "Trending Now" },
+  "sec-bestsellers": { key: "best-sellers", label: "Best Sellers" },
+  "sec-flash": { key: "hot-deals", label: "Today's Flash Deals" },
+  "sec-desk": { key: "desk-workspace", label: "Desk & Workspace" },
+};
 
 // ── Homepage Sections ───────────────────────────────────────────────────────
 
 export function HomepagePage() {
   const { sections, toggleSection, moveSection, resetHomepageSections } = useStorefrontCms();
   const [savedToast, setSavedToast] = useState(false);
+  const [manageSectionId, setManageSectionId] = useState<string | null>(null);
 
   const handleToggle = (id: string) => {
     toggleSection(id);
@@ -106,11 +123,302 @@ export function HomepagePage() {
               </div>
             </div>
 
+            {SECTION_PRODUCT_COLLECTIONS[section.id] && (
+              <Btn
+                variant="secondary"
+                size="sm"
+                icon={<ListChecks size={12} />}
+                onClick={() => setManageSectionId(section.id)}
+              >
+                Manage Products
+              </Btn>
+            )}
+
             <Toggle checked={section.visible} onChange={() => handleToggle(section.id)} />
           </Card>
         ))}
       </div>
+
+      {manageSectionId && SECTION_PRODUCT_COLLECTIONS[manageSectionId] && (
+        <SectionProductsModal
+          open={!!manageSectionId}
+          onClose={() => setManageSectionId(null)}
+          sectionName={
+            sections.find((s) => s.id === manageSectionId)?.name ||
+            SECTION_PRODUCT_COLLECTIONS[manageSectionId].label
+          }
+          collectionKey={SECTION_PRODUCT_COLLECTIONS[manageSectionId].key}
+        />
+      )}
     </div>
+  );
+}
+
+// ── Fast Multi-Product Picker (per homepage section) ───────────────────────
+//
+// Lets an admin search/filter the whole catalog and bulk check/uncheck which
+// products belong to one homepage row, instead of opening each product's own
+// edit form one at a time.
+function SectionProductsModal({
+  open,
+  onClose,
+  sectionName,
+  collectionKey,
+}: {
+  open: boolean;
+  onClose: () => void;
+  sectionName: string;
+  collectionKey: string;
+}) {
+  const [products, setProducts] = useState<AdminProduct[]>(() => getCachedAdminProducts());
+  const [loading, setLoading] = useState(!isCatalogLoaded());
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [visibilityFilter, setVisibilityFilter] = useState<"all" | "selected" | "unselected">("all");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+  const initialSelectedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setLoading(!isCatalogLoaded());
+    loadAdminProducts().then((rows) => {
+      if (cancelled) return;
+      setProducts(rows);
+      const initial = new Set(rows.filter((p) => (p.collections || []).includes(collectionKey)).map((p) => p.id));
+      setSelected(initial);
+      initialSelectedRef.current = initial;
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, collectionKey]);
+
+  const categories = useMemo(() => {
+    const set = new Set(products.map((p) => p.category).filter(Boolean));
+    return ["All", ...Array.from(set).sort()];
+  }, [products]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return products.filter((p) => {
+      if (categoryFilter !== "All" && p.category !== categoryFilter) return false;
+      if (visibilityFilter === "selected" && !selected.has(p.id)) return false;
+      if (visibilityFilter === "unselected" && selected.has(p.id)) return false;
+      if (!q) return true;
+      return p.title.toLowerCase().includes(q) || (p.sku || "").toLowerCase().includes(q);
+    });
+  }, [products, search, categoryFilter, visibilityFilter, selected]);
+
+  const toggle = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllShown = () => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      filtered.forEach((p) => next.add(p.id));
+      return next;
+    });
+  };
+
+  const clearAllShown = () => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      filtered.forEach((p) => next.delete(p.id));
+      return next;
+    });
+  };
+
+  const dirtyCount = useMemo(() => {
+    const before = initialSelectedRef.current;
+    const ids = new Set([...before, ...selected]);
+    let count = 0;
+    ids.forEach((id) => {
+      if (before.has(id) !== selected.has(id)) count++;
+    });
+    return count;
+  }, [selected]);
+
+  const handleSave = async () => {
+    const before = initialSelectedRef.current;
+    const ids = new Set([...before, ...selected]);
+    const updates: { id: string; changes: Partial<AdminProduct> }[] = [];
+
+    ids.forEach((id) => {
+      const wasIn = before.has(id);
+      const isIn = selected.has(id);
+      if (wasIn === isIn) return;
+      const product = products.find((p) => p.id === id);
+      if (!product) return;
+      const currentCollections = product.collections || [];
+      const nextCollections = isIn
+        ? [...currentCollections, collectionKey]
+        : currentCollections.filter((c) => c !== collectionKey);
+      updates.push({ id, changes: { collections: nextCollections } });
+    });
+
+    if (updates.length === 0) {
+      onClose();
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { updated, failed } = await bulkUpdateProducts(updates);
+      setProducts(getCachedAdminProducts());
+      if (failed.length > 0) {
+        toast.error(`Updated ${updated} product${updated === 1 ? "" : "s"}, but ${failed.length} failed to save.`);
+      } else {
+        toast.success(`Updated ${updated} product${updated === 1 ? "" : "s"} for "${sectionName}".`);
+      }
+      onClose();
+    } catch (e: any) {
+      toast.error(e?.message || "Could not save homepage product changes.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Manage Products — ${sectionName}`}
+      subtitle="Search or filter the catalog, then check which products belong in this homepage row"
+      width="max-w-2xl"
+      footer={
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[11px] font-semibold text-slate-500">
+            {selected.size} selected
+            {dirtyCount > 0 ? ` • ${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}` : ""}
+          </span>
+          <div className="flex items-center gap-2">
+            <Btn variant="secondary" onClick={onClose} disabled={saving}>
+              Cancel
+            </Btn>
+            <Btn onClick={handleSave} disabled={saving || dirtyCount === 0}>
+              {saving ? "Saving..." : `Save Changes${dirtyCount > 0 ? ` (${dirtyCount})` : ""}`}
+            </Btn>
+          </div>
+        </div>
+      }
+    >
+      <div className="space-y-3">
+        {/* Visibility filter — quickly narrow to items already on/off this homepage row */}
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+          {(
+            [
+              { key: "all", label: "All Products" },
+              { key: "selected", label: "On Homepage" },
+              { key: "unselected", label: "Not on Homepage" },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setVisibilityFilter(opt.key)}
+              className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                visibilityFilter === opt.key
+                  ? "bg-white text-slate-900 shadow-xs"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              {opt.label}
+              {opt.key === "selected" && selected.size > 0 && (
+                <span className="ml-1 text-slate-400">({selected.size})</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by product title or SKU..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-slate-50/80 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-medium"
+            />
+          </div>
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="bg-slate-50/80 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-emerald-500 cursor-pointer"
+          >
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+          <span>
+            {filtered.length} product{filtered.length === 1 ? "" : "s"} shown
+          </span>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={selectAllShown} className="hover:text-slate-900 cursor-pointer">
+              Select all shown
+            </button>
+            <button type="button" onClick={clearAllShown} className="hover:text-slate-900 cursor-pointer">
+              Clear shown
+            </button>
+          </div>
+        </div>
+
+        <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-[50vh] overflow-y-auto">
+          {loading ? (
+            <div className="py-10 text-center text-xs text-slate-400">Loading products...</div>
+          ) : filtered.length === 0 ? (
+            <div className="py-10 text-center text-xs text-slate-400">No products match your search/filter.</div>
+          ) : (
+            filtered.map((p) => {
+              const checked = selected.has(p.id);
+              return (
+                <div
+                  key={p.id}
+                  onClick={() => toggle(p.id)}
+                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors"
+                >
+                  <div
+                    className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all ${
+                      checked ? "bg-slate-900 border-slate-900 text-white" : "border-slate-300"
+                    }`}
+                  >
+                    {checked && <Check size={10} strokeWidth={3} />}
+                  </div>
+                  <div className="w-9 h-9 rounded-lg bg-slate-50 border border-slate-200/70 overflow-hidden shrink-0 flex items-center justify-center">
+                    {p.image ? (
+                      <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <ImageIcon size={14} className="text-slate-300" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-slate-900 truncate">{p.title}</div>
+                    <div className="text-[10px] text-slate-400">
+                      {p.sku} • {p.category}
+                    </div>
+                  </div>
+                  <div className="text-xs font-bold text-slate-700 shrink-0">{formatCurrency(p.price)}</div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </Modal>
   );
 }
 

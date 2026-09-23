@@ -119,3 +119,28 @@ export async function bulkSaveProducts(products: AdminProduct[]): Promise<void> 
   await api.post(API_ENDPOINTS.productsBulk, { products });
   await refreshEverything();
 }
+
+/**
+ * Applies a different partial update to each product (e.g. adding/removing a
+ * homepage collection tag across a batch picked in a filter/checklist UI).
+ * Failures are collected rather than aborting the rest; the catalog refreshes
+ * once at the end instead of after every row.
+ */
+export async function bulkUpdateProducts(
+  updates: { id: string; changes: Partial<AdminProduct> }[]
+): Promise<{ updated: number; failed: string[] }> {
+  const failed: string[] = [];
+  let updated = 0;
+
+  for (const { id, changes } of updates) {
+    try {
+      await api.put<AdminProduct>(`${API_ENDPOINTS.products}/${encodeURIComponent(id)}`, changes);
+      updated++;
+    } catch {
+      failed.push(id);
+    }
+  }
+
+  await refreshEverything();
+  return { updated, failed };
+}

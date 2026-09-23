@@ -72,7 +72,7 @@ function ProductRouteErrorFallback({ reset }: { error: Error; reset: () => void 
           onClick={() => navigate({ to: "/" })}
           className="px-5 py-2.5 rounded-xl border border-border bg-card text-foreground text-xs font-semibold cursor-pointer active:scale-95 transition-transform"
         >
-          Return to Storefront
+          Return to Store
         </button>
       </div>
     </div>
@@ -135,37 +135,21 @@ function ProductDetailPage() {
 
   const product: Product | undefined = catalogProduct || directProduct || undefined;
 
-  if (!product) {
-    if (!directLookupDone) {
-      return (
-        <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4 py-16 bg-background">
-          <div className="w-8 h-8 rounded-full border-2 border-slate-900 dark:border-white border-t-transparent animate-spin mb-4" />
-          <p className="text-sm font-medium text-muted-foreground">Loading product details...</p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4 py-16 bg-background">
-        <h1 className="text-2xl font-bold text-neutral-900 dark:text-white">Product Not Found</h1>
-        <p className="text-sm text-neutral-500 mt-2 max-w-md">
-          This product is currently unavailable or has been removed from the catalog.
-        </p>
-        <button
-          onClick={() => navigate({ to: "/" })}
-          className="mt-6 px-6 py-2.5 rounded-xl bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 text-xs font-bold transition-transform active:scale-95 cursor-pointer shadow-sm"
-        >
-          Return to Storefront
-        </button>
-      </div>
-    );
-  }
-
+  // Every hook below must run unconditionally on every render (Rules of Hooks) —
+  // `product` starts undefined while the catalog/direct lookup is still in
+  // flight (always true on a fresh page load/reload) and becomes defined once
+  // it resolves. Hooks used to sit after an early `return` for the "no product
+  // yet" case, so that first render called fewer hooks than the next one once
+  // `product` arrived — React throws "Rendered more hooks than during the
+  // previous render" for that, which is what surfaced as the route's error
+  // fallback specifically on reload (client-side nav usually has the catalog
+  // already cached, so `product` was truthy from the first render and the bug
+  // never triggered).
   const { isWishlisted, toggleWishlist } = useWishlist();
-  const isLiked = isWishlisted(product.id);
 
   // Dynamically calculate available color finishes from product
   const availableColors = useMemo(() => {
+    if (!product) return [];
     if (Array.isArray(product.colors) && product.colors.length > 0) {
       return product.colors.filter((c) => c && c.name && c.name !== "None");
     }
@@ -182,7 +166,7 @@ function ProductDetailPage() {
 
   const [quantity, setQuantity] = useState(1);
   const [selectedColor, setSelectedColor] = useState<string>(() => {
-    if (Array.isArray(product.colors) && product.colors.length > 0) {
+    if (product && Array.isArray(product.colors) && product.colors.length > 0) {
       return product.colors[0]?.name || "";
     }
     return "";
@@ -191,7 +175,7 @@ function ProductDetailPage() {
   const [justAdded, setJustAdded] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [isDescExpanded, setIsDescExpanded] = useState(false);
-  
+
   // Mobile Accordion state: multi-open dictionary (Default: 'desc' is open)
   const [openMobileAccordions, setOpenMobileAccordions] = useState<{ [key: string]: boolean }>({
     desc: true,
@@ -225,6 +209,7 @@ function ProductDetailPage() {
 
   // Scroll to top, reset active tab, and ensure Product Description is open on load
   useEffect(() => {
+    if (!product) return;
     window.scrollTo(0, 0);
     setActiveTab("description");
     setOpenMobileAccordions({
@@ -240,6 +225,63 @@ function ProductDetailPage() {
       setSelectedColor(product.colors[0]?.name || "");
     }
   }, [productId, product]);
+
+  const shortEditorialDescription = useMemo(() => {
+    if (!product?.description || typeof product.description !== "string") {
+      return `Discover the exceptional quality and craftsmanship of ${product?.title || "this item"}. Curated by ${product?.shop || "FaasBay"} for everyday durability and performance.`;
+    }
+    // Extract only the clean intro overview, stopping before feature bullet lists or sections
+    const lines = String(product.description).split(/\r?\n/);
+    const introLines: string[] = [];
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) {
+        if (introLines.length > 0) break; // First clean paragraph complete
+        continue;
+      }
+      if (
+        /^(key\s*features|features|specifications|specs|highlights|details|package\s*includes|what's\s*included):?/i.test(line) ||
+        /^[•\-\*✍️🗑️🔒👀♻️🚨✨⚡️📦🔹✔️✔👍🔥]/.test(line)
+      ) {
+        break;
+      }
+      introLines.push(line);
+    }
+    const fullIntro = introLines.join(" ").trim();
+    if (fullIntro) {
+      return fullIntro;
+    }
+    const firstPara = String(product.description).split(/\n\s*\n|\r\n\s*\r\n/)[0].trim();
+    return firstPara.length > 180 ? firstPara.slice(0, 180).trim() + "..." : firstPara;
+  }, [product?.description, product?.title, product?.shop]);
+
+  if (!product) {
+    if (!directLookupDone) {
+      return (
+        <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4 py-16 bg-background">
+          <div className="w-8 h-8 rounded-full border-2 border-slate-900 dark:border-white border-t-transparent animate-spin mb-4" />
+          <p className="text-sm font-medium text-muted-foreground">Loading product details...</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4 py-16 bg-background">
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-white">Product Not Found</h1>
+        <p className="text-sm text-neutral-500 mt-2 max-w-md">
+          This product is currently unavailable or has been removed from the catalog.
+        </p>
+        <button
+          onClick={() => navigate({ to: "/" })}
+          className="mt-6 px-6 py-2.5 rounded-xl bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 text-xs font-bold transition-transform active:scale-95 cursor-pointer shadow-sm"
+        >
+          Return to Store
+        </button>
+      </div>
+    );
+  }
+
+  const isLiked = isWishlisted(product.id);
 
   // Calculate pricing & savings safely
   const currentPriceNum = typeof product.price === "number"
@@ -290,35 +332,6 @@ function ProductDetailPage() {
       el.scrollIntoView({ behavior: "smooth" });
     }
   };
-
-  const shortEditorialDescription = useMemo(() => {
-    if (!product?.description || typeof product.description !== "string") {
-      return `Discover the exceptional quality and craftsmanship of ${product?.title || "this item"}. Curated by ${product?.shop || "FaasBay"} for everyday durability and performance.`;
-    }
-    // Extract only the clean intro overview, stopping before feature bullet lists or sections
-    const lines = String(product.description).split(/\r?\n/);
-    const introLines: string[] = [];
-    for (const rawLine of lines) {
-      const line = rawLine.trim();
-      if (!line) {
-        if (introLines.length > 0) break; // First clean paragraph complete
-        continue;
-      }
-      if (
-        /^(key\s*features|features|specifications|specs|highlights|details|package\s*includes|what's\s*included):?/i.test(line) ||
-        /^[•\-\*✍️🗑️🔒👀♻️🚨✨⚡️📦🔹✔️✔👍🔥]/.test(line)
-      ) {
-        break;
-      }
-      introLines.push(line);
-    }
-    const fullIntro = introLines.join(" ").trim();
-    if (fullIntro) {
-      return fullIntro;
-    }
-    const firstPara = String(product.description).split(/\n\s*\n|\r\n\s*\r\n/)[0].trim();
-    return firstPara.length > 180 ? firstPara.slice(0, 180).trim() + "..." : firstPara;
-  }, [product?.description, product?.title, product?.shop]);
 
   const relatedProducts = allStoreProducts
     .filter((item) => item.id !== product.id)

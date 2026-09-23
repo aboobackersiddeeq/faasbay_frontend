@@ -2,9 +2,11 @@
 // FaasBay Commerce OS — Inventory Management (Stock Levels & Traceable Movements)
 // ============================================================================
 import React, { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { Package, AlertTriangle, ArrowUpRight, ArrowDownRight, Plus, Minus, RotateCcw, Truck, Wrench, Edit3, History, ShieldAlert, CheckCircle2 } from "lucide-react";
 import { DataTable, StatusBadge, PageHeader, KPICard, Card, Btn, TabSwitcher, SlideOver, FormField, Input, Select, Textarea, formatCurrency, formatNumber } from "./shared/components";
 import { useStoreProducts, type Product } from "@/components/store/data";
+import { updateProduct as updateProductApi } from "./shared/product-store";
 
 interface InventoryItem {
   id: string;
@@ -77,13 +79,14 @@ export default function Inventory() {
   const [adjustDelta, setAdjustDelta] = useState<number>(0);
   const [adjustReason, setAdjustReason] = useState<string>("Physical count audit");
   const [adjustStaff, setAdjustStaff] = useState<string>("FaasBay Admin");
+  const [isSavingAdjustment, setIsSavingAdjustment] = useState(false);
 
   const totalStock = items.reduce((s, i) => s + i.stock, 0);
   const lowStock = items.filter((i) => i.status === "Low Stock").length;
   const outOfStock = items.filter((i) => i.status === "Out of Stock").length;
   const totalValue = items.reduce((s, i) => s + i.stock * i.price, 0);
 
-  const handleAdjustSubmit = () => {
+  const handleAdjustSubmit = async () => {
     if (!adjustTarget || adjustDelta === 0) {
       setAdjustTarget(null);
       return;
@@ -94,37 +97,48 @@ export default function Inventory() {
     const newAvailable = Math.max(0, newStock - adjustTarget.reserved);
     const newStatus = newStock <= 0 ? "Out of Stock" : newStock <= adjustTarget.lowThreshold ? "Low Stock" : "In Stock";
 
-    // Update Item
-    setItems((prev) =>
-      prev.map((i) =>
-        i.id === adjustTarget.id
-          ? {
-              ...i,
-              stock: newStock,
-              available: newAvailable,
-              status: newStatus,
-            }
-          : i
-      )
-    );
+    setIsSavingAdjustment(true);
+    try {
+      // Persist to MongoDB — without this the change only ever lived in local
+      // React state and was wiped out the next time the catalog refreshed.
+      await updateProductApi(adjustTarget.id, { stock: newStock } as any);
 
-    // Record Traceable Movement
-    const newMovement: StockMovement = {
-      id: `sm-${Date.now()}`,
-      date: new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
-      product: adjustTarget.title,
-      sku: adjustTarget.sku,
-      type: adjustDelta > 0 ? "Adjustment" : "Damage",
-      previous: previousStock,
-      change: adjustDelta,
-      current: newStock,
-      reason: adjustReason,
-      staff: adjustStaff,
-    };
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === adjustTarget.id
+            ? {
+                ...i,
+                stock: newStock,
+                available: newAvailable,
+                status: newStatus,
+              }
+            : i
+        )
+      );
 
-    setMovements([newMovement, ...movements]);
-    setAdjustTarget(null);
-    setAdjustDelta(0);
+      // Record Traceable Movement
+      const newMovement: StockMovement = {
+        id: `sm-${Date.now()}`,
+        date: new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
+        product: adjustTarget.title,
+        sku: adjustTarget.sku,
+        type: adjustDelta > 0 ? "Adjustment" : "Damage",
+        previous: previousStock,
+        change: adjustDelta,
+        current: newStock,
+        reason: adjustReason,
+        staff: adjustStaff,
+      };
+
+      setMovements((prev) => [newMovement, ...prev]);
+      toast.success(`Stock updated to ${newStock} units`);
+      setAdjustTarget(null);
+      setAdjustDelta(0);
+    } catch (e: any) {
+      toast.error(e?.message || "Could not save the stock adjustment.");
+    } finally {
+      setIsSavingAdjustment(false);
+    }
   };
 
   const inventoryColumns = [
@@ -321,10 +335,12 @@ export default function Inventory() {
         subtitle={adjustTarget ? `${adjustTarget.title} (${adjustTarget.sku})` : ""}
         footer={
           <div className="flex justify-end gap-2">
-            <Btn variant="secondary" onClick={() => setAdjustTarget(null)}>
+            <Btn variant="secondary" onClick={() => setAdjustTarget(null)} disabled={isSavingAdjustment}>
               Cancel
             </Btn>
-            <Btn onClick={handleAdjustSubmit}>Save Adjustment</Btn>
+            <Btn onClick={handleAdjustSubmit} disabled={isSavingAdjustment}>
+              {isSavingAdjustment ? "Saving..." : "Save Adjustment"}
+            </Btn>
           </div>
         }
       >

@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
+import { scrollToSection } from "@/lib/scroll-to-section";
 
 export interface QuickNavItem {
   id: string;
@@ -76,26 +77,22 @@ export function HeaderQuickNav() {
       setSelectedCategory("all");
       setSearchQuery("");
       setQuickNavFilter("new-arrivals");
-      const el = document.getElementById("catalog-section") || document.getElementById("sec-curated");
-      if (el) el.scrollIntoView({ behavior: "smooth" });
+      scrollToSection("catalog-section");
     } else if (item.id === "best-sellers") {
       setSelectedCategory("all");
       setSearchQuery("");
       setQuickNavFilter("best-sellers");
-      const el = document.getElementById("catalog-section") || document.getElementById("sec-bestsellers") || document.getElementById("sec-trending");
-      if (el) el.scrollIntoView({ behavior: "smooth" });
+      scrollToSection("catalog-section");
     } else if (item.id === "todays-deals") {
       setSelectedCategory("all");
       setSearchQuery("");
       setQuickNavFilter("todays-deals");
-      const el = document.getElementById("catalog-section") || document.getElementById("sec-flash");
-      if (el) el.scrollIntoView({ behavior: "smooth" });
+      scrollToSection("catalog-section");
     } else if (item.id === "offers") {
       setSelectedCategory("all");
       setSearchQuery("");
       setQuickNavFilter("offers");
-      const el = document.getElementById("catalog-section") || document.getElementById("claim-offer-btn");
-      if (el) el.scrollIntoView({ behavior: "smooth" });
+      scrollToSection("catalog-section");
     }
   };
 

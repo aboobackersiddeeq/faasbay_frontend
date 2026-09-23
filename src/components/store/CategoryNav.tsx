@@ -256,9 +256,13 @@ export function CategoryNav() {
     if (!category.isAll) {
       recordCategoryView(category.id);
     }
-    const catalogEl = document.getElementById("catalog-section") || document.getElementById("categories");
-    if (catalogEl && window.scrollY < 200) {
-      catalogEl.scrollIntoView({ behavior: "smooth" });
+    // Selecting a category swaps the whole page layout (homepage sections vs.
+    // the filtered catalog view), which remounts this nav in a different spot
+    // on the page. Always snapping to the top keeps it in view regardless of
+    // where the user had scrolled to when they clicked — a conditional
+    // scroll-if-near-top left it stranded off-screen after the layout swap.
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 

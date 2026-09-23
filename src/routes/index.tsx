@@ -24,16 +24,12 @@ import { useCart } from "@/hooks/use-cart";
 const HOMEPAGE_ROW_LIMIT = 10;
 
 /**
- * Admin-assigned products (via a product's "Homepage Visibility" toggles) lead
- * every homepage row; if that assignment doesn't fill the row, the rest of the
- * catalog fills the remaining slots instead of the row going empty/short.
+ * Only products explicitly assigned to a homepage row (via a product's
+ * "Homepage Visibility" toggles in admin) are shown there — no catalog
+ * fillers. The row itself is hidden elsewhere when nothing is assigned.
  */
 function withAdminPriority(all: Product[], isAssigned: (p: Product) => boolean, limit = HOMEPAGE_ROW_LIMIT): Product[] {
-  const assigned = all.filter(isAssigned);
-  if (assigned.length >= limit) return assigned;
-  const assignedIds = new Set(assigned.map((p) => p.id));
-  const fillers = all.filter((p) => !assignedIds.has(p.id));
-  return [...assigned, ...fillers].slice(0, limit);
+  return all.filter(isAssigned).slice(0, limit);
 }
 
 /**
@@ -216,12 +212,12 @@ function Index() {
         return <FeaturedCollectionSection key={sectionId} title={meta.title} />;
       }
       case "sec-trending": {
-        if (allStoreProducts.length === 0) return null;
         const meta = resolveCollectionMeta(collections, ["trending"], "Trending Now");
         if (!meta.visible) return null;
         const displayItems = withAdminPriority(allStoreProducts, (p) =>
           Array.isArray(p.collections) && p.collections.includes("trending")
         );
+        if (displayItems.length === 0) return null;
         return (
           <ProductRow
             key={sectionId}
@@ -234,12 +230,12 @@ function Index() {
         );
       }
       case "sec-bestsellers": {
-        if (allStoreProducts.length === 0) return null;
         const meta = resolveCollectionMeta(collections, ["best-sellers"], "Best Sellers");
         if (!meta.visible) return null;
         const displayItems = withAdminPriority(allStoreProducts, (p) =>
           Array.isArray(p.collections) && p.collections.includes("best-sellers")
         );
+        if (displayItems.length === 0) return null;
         return (
           <ProductRow
             key={sectionId}
@@ -254,7 +250,6 @@ function Index() {
       case "sec-spotlight":
         return <AutoSlidingSpotlight key={sectionId} />;
       case "sec-flash": {
-        if (allStoreProducts.length === 0) return null;
         const meta = resolveCollectionMeta(collections, ["todays-deals", "hot-deals", "flash-deals"], "Today's Flash Deals");
         if (!meta.visible) return null;
         const displayItems = withAdminPriority(
@@ -266,6 +261,7 @@ function Index() {
                 p.collections.includes("hot-deals") ||
                 p.collections.includes("todays-deals")))
         );
+        if (displayItems.length === 0) return null;
         return (
           <ProductRow
             key={sectionId}
@@ -280,13 +276,13 @@ function Index() {
       case "sec-promo2":
         return <StudioCampaignBanner key={sectionId} />;
       case "sec-desk": {
-        if (allStoreProducts.length === 0) return null;
         const meta = resolveCollectionMeta(collections, ["desk-workspace"], "Desk & Workspace Essentials");
         if (!meta.visible) return null;
         const displayItems = withAdminPriority(
           allStoreProducts,
           (p) => Array.isArray(p.collections) && p.collections.includes("desk-workspace")
         );
+        if (displayItems.length === 0) return null;
         return (
           <ProductRow
             key={sectionId}
