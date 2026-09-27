@@ -31,6 +31,7 @@ export const API_ENDPOINTS = {
   myOrders: `${API_BASE_URL}/api/orders/mine`,
   razorpayCreateOrder: `${API_BASE_URL}/api/orders/razorpay/create-order`,
   razorpayVerify: `${API_BASE_URL}/api/orders/razorpay/verify-payment`,
+  razorpayCheckPayment: `${API_BASE_URL}/api/orders/razorpay/check-payment`,
 
   // Marketing
   coupons: `${API_BASE_URL}/api/coupons`,
