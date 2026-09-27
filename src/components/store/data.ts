@@ -8,6 +8,7 @@
 import { API_ENDPOINTS } from "@/config/api";
 import { api, queryString } from "@/lib/api-client";
 import { createRemoteStore, useRemoteStore, useRemoteStoreState } from "@/lib/remote-store";
+import { resolveCategoryIcon } from "@/lib/category-icons";
 
 export interface Review {
   id: string;
@@ -43,6 +44,7 @@ export type Product = {
   features?: string[];
   customerReviews?: Review[];
   collections?: string[];
+  tags?: string[];
   specifications?: { label: string; value: string }[];
   colors?: { name: string; hex: string }[];
   variants?: any[];
@@ -120,6 +122,7 @@ export function formatProductForStorefront(p: any): Product {
       Array.isArray(p.collections) && p.collections.length > 0
         ? p.collections
         : ["trending", "new-arrivals", "best-sellers"],
+    tags: Array.isArray(p.tags) ? p.tags.map(String) : [],
     specifications: parsedSpecs,
     colors: parsedColors,
     variants: Array.isArray(p.variants) ? p.variants : [],
@@ -272,26 +275,89 @@ export function getPersonalizedRecommendations(
   };
 }
 
-/** Category pills shown above the catalog. The authoritative list is /api/categories. */
-export const categories = [
-  { id: "all", label: "All Products" },
-  { id: "mobile-electronics", label: "Mobile & Electronics" },
-  { id: "audio-speakers", label: "Audio & Speakers" },
-  { id: "car-accessories", label: "Car Accessories" },
-  { id: "home-cleaning", label: "Home Cleaning" },
-  { id: "health-wellness", label: "Health & Massage" },
-  { id: "beauty-personal-care", label: "Beauty & Care" },
-  { id: "kitchen-dining", label: "Kitchen & Dining" },
-  { id: "lighting", label: "Home Lighting" },
-  { id: "kids-toys", label: "Kids & Toys" },
-  { id: "watches-fashion", label: "Watches & Fashion" },
-  { id: "storage-organizers", label: "Storage & Organizers" },
-  { id: "travel-products", label: "Travel Products" },
-  { id: "home-lifestyle", label: "Home & Lifestyle" },
-  { id: "pest-control", label: "Pest Control" },
-  { id: "stationery-office", label: "Stationery & Office" },
-  { id: "utility-tools", label: "Utility & Tools" },
+// ── Live categories (admin-managed category rail) ───────────────────────────
+
+/** A storefront category. `id` is the slug, which is what `Product.category` holds. */
+export interface StoreCategory {
+  id: string;
+  label: string;
+  description: string;
+  /** Icon key from `@/lib/category-icons`. */
+  icon: string;
+  isAll?: boolean;
+}
+
+interface CategoryRow {
+  slug: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  sortOrder?: number;
+  visible?: boolean;
+}
+
+const ALL_CATEGORY: StoreCategory = {
+  id: "all",
+  label: "All Products",
+  description: "Explore the entire product catalog",
+  icon: "sparkle",
+  isAll: true,
+};
+
+/** Shown until /api/categories answers, and kept if the API is unreachable. */
+const FALLBACK_CATEGORIES: StoreCategory[] = [
+  ALL_CATEGORY,
+  { id: "mobile-electronics", label: "Mobile & Electronics", description: "Smartphones, chargers & accessories", icon: "phone" },
+  { id: "audio-speakers", label: "Audio & Speakers", description: "Studio acoustics & wireless audio", icon: "headphones" },
+  { id: "car-accessories", label: "Car Accessories", description: "Dashboard mounts, chargers & tech", icon: "car" },
+  { id: "home-cleaning", label: "Home Cleaning & Appliances", description: "Vacuum, sprays & smart cleaners", icon: "cleaning" },
+  { id: "health-wellness", label: "Health, Wellness & Massage", description: "Massagers & relaxation essentials", icon: "health" },
+  { id: "beauty-personal-care", label: "Beauty & Personal Care", description: "Grooming, skincare & haircare", icon: "beauty" },
+  { id: "kitchen-dining", label: "Kitchen & Dining", description: "Cookware, organizers & dinnerware", icon: "cookware" },
+  { id: "lighting", label: "Home Lighting", description: "Ambient LEDs & modern lamps", icon: "bulb" },
+  { id: "kids-toys", label: "Kids & Toys", description: "Educational toys & play sets", icon: "teddy" },
+  { id: "watches-fashion", label: "Watches & Fashion", description: "Luxury watches, bands & accessories", icon: "watch" },
+  { id: "storage-organizers", label: "Storage & Organizers", description: "Modular drawer & closet bins", icon: "storage" },
+  { id: "travel-products", label: "Travel Products", description: "Suitcases, backpacks & travel gear", icon: "luggage" },
+  { id: "home-lifestyle", label: "Home & Lifestyle", description: "Modern home decor & living essentials", icon: "home" },
+  { id: "pest-control", label: "Pest Control", description: "Ultrasonic repellers & safe pest solutions", icon: "shield" },
+  { id: "stationery-office", label: "Stationery & Office", description: "Desk journals, organizers & pens", icon: "notebook" },
+  { id: "utility-tools", label: "Utility & Tools", description: "Multi-tools, hardware & DIY gear", icon: "tools" },
 ];
+
+/** Visible categories in admin sort order, always led by "All Products". */
+const categoriesStore = createRemoteStore<StoreCategory[]>(FALLBACK_CATEGORIES, async () => {
+  const rows = await api.get<CategoryRow[]>(API_ENDPOINTS.categories);
+  if (!Array.isArray(rows)) return FALLBACK_CATEGORIES;
+
+  const sorted = [...rows].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  const allRow = sorted.find((r) => r.slug === "all");
+  // The "All Products" row can be renamed or re-iconed but never hidden —
+  // it's how shoppers clear a category filter.
+  const all: StoreCategory = allRow
+    ? { ...ALL_CATEGORY, label: allRow.name || ALL_CATEGORY.label, description: allRow.description || ALL_CATEGORY.description, icon: resolveCategoryIcon(allRow.icon, "all") }
+    : ALL_CATEGORY;
+
+  const rest = sorted
+    .filter((r) => r.slug !== "all" && r.visible !== false)
+    .map((r) => ({
+      id: r.slug,
+      label: r.name,
+      description: r.description || "",
+      icon: resolveCategoryIcon(r.icon, r.slug),
+    }));
+
+  return [all, ...rest];
+});
+
+export function useStoreCategories(): StoreCategory[] {
+  return useRemoteStore(categoriesStore);
+}
+
+/** Re-reads categories from the database after an admin edit. */
+export function refreshCategories(): Promise<StoreCategory[]> {
+  return categoriesStore.refresh();
+}
 
 export const shortcuts = [
   "Noise Cancelling Headphones",

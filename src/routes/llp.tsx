@@ -680,7 +680,7 @@ function AdminManagementPortal() {
 
             {/* Interactive Notification Bell */}
             <div className="relative">
-              <button
+              {/* <button
                 onClick={() => setShowNotifications(!showNotifications)}
                 className="relative p-2 rounded-xl hover:bg-white/80 text-slate-600 transition-colors cursor-pointer"
                 title="Notifications"
@@ -689,7 +689,7 @@ function AdminManagementPortal() {
                 {unreadCount > 0 && (
                   <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" />
                 )}
-              </button>
+              </button> */}
 
               {showNotifications && (
                 <>

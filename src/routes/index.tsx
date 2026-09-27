@@ -7,7 +7,7 @@ import { MobileTabBar } from "@/components/store/MobileTabBar";
 import { ProductRow } from "@/components/store/ProductRow";
 import { ProductCard } from "@/components/store/ProductCard";
 import { DualHeroBanner } from "@/components/store/DualHeroBanner";
-import { CategoryNav, storeCategories } from "@/components/store/CategoryNav";
+import { CategoryNav } from "@/components/store/CategoryNav";
 import { FeaturedCollectionSection } from "@/components/store/FeaturedCollectionSection";
 import { AutoSlidingSpotlight } from "@/components/store/AutoSlidingSpotlight";
 import { TrustFeatures } from "@/components/store/TrustFeatures";
@@ -15,11 +15,13 @@ import { StudioCampaignBanner } from "@/components/store/StudioCampaignBanner";
 import {
   useStoreProducts,
   useStoreCollections,
+  useStoreCategories,
   type Product,
   type StoreCollection,
 } from "@/components/store/data";
 import { useStorefrontCms } from "@/lib/storefront-cms";
 import { useCart } from "@/hooks/use-cart";
+import { searchProducts } from "@/lib/product-search";
 
 const HOMEPAGE_ROW_LIMIT = 10;
 
@@ -83,27 +85,8 @@ function Index() {
   } = useCart();
 
   // Find active category item metadata
+  const storeCategories = useStoreCategories();
   const activeCategoryObj = storeCategories.find((c) => c.id === selectedCategory);
-
-  // Helper to parse numerical price safely
-  const parsePrice = (priceStr: string | number) => {
-    if (typeof priceStr === "number") return priceStr;
-    const num = parseInt(String(priceStr || "0").replace(/[^\d]/g, ""), 10);
-    return isNaN(num) ? 0 : num;
-  };
-
-  // Helper to detect price search like "under 999", "under 1999", "< 1000", etc.
-  const parsePriceQuery = (query: string): number | null => {
-    if (!query) return null;
-    const clean = query.toLowerCase().replace(/,/g, "").replace(/₹/g, "").trim();
-    const match = clean.match(/(?:under|below|less than|<=|<)\s*(\d+)/i);
-    if (match && match[1]) {
-      return parseInt(match[1], 10);
-    }
-    return null;
-  };
-
-  const maxPriceFromSearch = searchQuery ? parsePriceQuery(searchQuery) : null;
 
   // Dynamic filter products based on selected category, quick nav filter & search query
   const filteredProducts = useMemo(() => {
@@ -145,24 +128,13 @@ function Index() {
       }
     }
 
-    // 3. Search query filter
+    // 3. Search query filter (ranked by relevance; supports "under 999")
     if (searchQuery && searchQuery.trim()) {
-      if (maxPriceFromSearch !== null) {
-        list = list.filter((p) => parsePrice(p.price) <= maxPriceFromSearch);
-      } else {
-        const q = searchQuery.toLowerCase().trim();
-        list = list.filter(
-          (p) =>
-            p.title.toLowerCase().includes(q) ||
-            p.category.toLowerCase().includes(q) ||
-            p.shop.toLowerCase().includes(q) ||
-            p.description?.toLowerCase().includes(q)
-        );
-      }
+      list = searchProducts(list, searchQuery);
     }
 
     return list;
-  }, [allStoreProducts, selectedCategory, searchQuery, quickNavFilter, maxPriceFromSearch]);
+  }, [allStoreProducts, selectedCategory, searchQuery, quickNavFilter]);
 
   const isFilteringActive =
     (selectedCategory && selectedCategory !== "all") ||

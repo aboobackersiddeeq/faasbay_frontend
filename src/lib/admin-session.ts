@@ -57,6 +57,24 @@ export function saveAdminSession(token: string, user: AdminUser, remember = true
   }
 }
 
+/**
+ * Swaps in a freshly issued token (e.g. after a password change, which retires
+ * every older token) without changing whether the session is remembered.
+ */
+export function replaceAdminToken(token: string, user?: AdminUser) {
+  if (typeof window === "undefined") return;
+  try {
+    const remembered = localStorage.getItem(TOKEN_KEY) !== null;
+    saveAdminSession(
+      token,
+      user ?? getAdminUser() ?? { email: "", name: "", role: "" },
+      remembered,
+    );
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 export function clearAdminSession() {
   if (typeof window === "undefined") return;
   try {

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
 import { useStorefrontCms } from "@/lib/storefront-cms";
+import { useStoreProducts } from "@/components/store/data";
 
 export interface BannerItem {
   id: string;
@@ -34,6 +35,16 @@ export interface BannerItem {
   circleColor: string;
   image: string;
   imageAlt: string;
+  link: string;
+}
+
+const DEFAULT_LINK = "/#catalog-section";
+
+function scrollToHash(link: string) {
+  const id = link.slice(link.indexOf("#") + 1);
+  const target = id ? document.getElementById(id) : null;
+  if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  else window.location.href = link;
 }
 
 export function DualHeroBanner() {
@@ -41,7 +52,8 @@ export function DualHeroBanner() {
   const [currentPairIndex, setCurrentPairIndex] = useState(0);
   const [mobileSlide, setMobileSlide] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
-  const { recordCategoryView } = useCart();
+  const { recordCategoryView, openProductDetail } = useCart();
+  const storeProducts = useStoreProducts();
   const touchStartX = useRef<number | null>(null);
 
   // Fallback icon map
@@ -73,6 +85,7 @@ export function DualHeroBanner() {
       circleColor: "bg-slate-200/70 dark:bg-white/10",
       image: p.left.image,
       imageAlt: p.left.title,
+      link: p.left.link || DEFAULT_LINK,
     },
     {
       id: p.right.id,
@@ -91,6 +104,7 @@ export function DualHeroBanner() {
       circleColor: "bg-slate-200/70 dark:bg-white/10",
       image: p.right.image,
       imageAlt: p.right.title,
+      link: p.right.link || DEFAULT_LINK,
     },
   ]);
 
@@ -111,6 +125,34 @@ export function DualHeroBanner() {
     }, 3000);
     return () => clearInterval(interval);
   }, [isHovered, allBanners.length]);
+
+  /**
+   * Follows the banner's CMS link. Product links open the quick-view like the
+   * other carousels; hash links scroll smoothly; anything else navigates normally.
+   */
+  const handleBannerClick = (link: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; // let "open in new tab" work
+
+    const productMatch = link.match(/^\/product\/([^/?#]+)/);
+    if (productMatch) {
+      const product = storeProducts.find((p) => p.id === decodeURIComponent(productMatch[1]!));
+      if (product) {
+        e.preventDefault();
+        openProductDetail(product);
+        return;
+      }
+      // Stale product link (e.g. the product was deleted) — fall back to the catalog.
+      e.preventDefault();
+      scrollToHash(DEFAULT_LINK);
+      return;
+    }
+
+    const onThisPage = link.startsWith("#") || (link.startsWith("/#") && window.location.pathname === "/");
+    if (onThisPage) {
+      e.preventDefault();
+      scrollToHash(link);
+    }
+  };
 
   const handleNext = () => setCurrentPairIndex((prev) => (prev + 1) % (safePairs.length || 1));
   const handlePrev = () => setCurrentPairIndex((prev) => (prev - 1 + (safePairs.length || 1)) % (safePairs.length || 1));
@@ -152,7 +194,8 @@ export function DualHeroBanner() {
                   {/* Left Banner */}
                   <div className="relative overflow-hidden rounded-2xl shadow-xs hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-[#f1f5f9] via-[#f8fafc] to-[#e8eef5] dark:bg-[#151922] text-neutral-900 dark:text-white border border-slate-200/90 dark:border-white/10">
                     <a
-                      href="#catalog-section"
+                      href={pair.left.link || DEFAULT_LINK}
+                      onClick={handleBannerClick(pair.left.link || DEFAULT_LINK)}
                       className="block p-5 lg:p-7 min-h-[220px] lg:min-h-[250px] flex items-center justify-between cursor-pointer"
                     >
                       <div className="flex-1 pr-4 space-y-2.5 z-10">
@@ -200,7 +243,8 @@ export function DualHeroBanner() {
                   {/* Right Banner */}
                   <div className="relative overflow-hidden rounded-2xl shadow-xs hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-[#f3f4f6] via-[#f9fafb] to-[#e5e7eb] dark:bg-[#151922] text-neutral-900 dark:text-white border border-slate-200/90 dark:border-white/10">
                     <a
-                      href="#catalog-section"
+                      href={pair.right.link || DEFAULT_LINK}
+                      onClick={handleBannerClick(pair.right.link || DEFAULT_LINK)}
                       className="block p-5 lg:p-7 min-h-[220px] lg:min-h-[250px] flex items-center justify-between cursor-pointer"
                     >
                       <div className="flex-1 pr-4 space-y-2.5 z-10">
@@ -257,7 +301,7 @@ export function DualHeroBanner() {
               type="button"
               onClick={handlePrev}
               aria-label="Previous banner pair"
-              className="absolute -left-3.5 top-1/2 -translate-y-1/2 z-20 hidden md:grid h-8 w-8 place-items-center rounded-full bg-white/95 dark:bg-[#1e293b]/95 text-neutral-800 dark:text-white shadow-md hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 border border-slate-200 dark:border-white/10 cursor-pointer"
+              className="absolute -left-3.5 top-1/2 -translate-y-1/2 z-20 hidden md:grid h-8 w-8 place-items-center rounded-full bg-white/95 dark:bg-[#1e293b]/95 text-neutral-800 dark:text-white shadow-md hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 focus-visible:opacity-100 border border-slate-200 dark:border-white/10 cursor-pointer"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -265,7 +309,7 @@ export function DualHeroBanner() {
               type="button"
               onClick={handleNext}
               aria-label="Next banner pair"
-              className="absolute -right-3.5 top-1/2 -translate-y-1/2 z-20 hidden md:grid h-8 w-8 place-items-center rounded-full bg-white/95 dark:bg-[#1e293b]/95 text-neutral-800 dark:text-white shadow-md hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 border border-slate-200 dark:border-white/10 cursor-pointer"
+              className="absolute -right-3.5 top-1/2 -translate-y-1/2 z-20 hidden md:grid h-8 w-8 place-items-center rounded-full bg-white/95 dark:bg-[#1e293b]/95 text-neutral-800 dark:text-white shadow-md hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 focus-visible:opacity-100 border border-slate-200 dark:border-white/10 cursor-pointer"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -280,10 +324,15 @@ export function DualHeroBanner() {
                     type="button"
                     onClick={() => setCurrentPairIndex(dotIdx)}
                     aria-label={`Go to slide pair ${dotIdx + 1}`}
-                    className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
-                      isActive ? "w-6 bg-neutral-900 dark:bg-white shadow-xs" : "w-1.5 bg-neutral-300 dark:bg-white/20 hover:bg-neutral-400"
-                    }`}
-                  />
+                    aria-current={isActive}
+                    className="group/dot py-2 px-0.5 cursor-pointer"
+                  >
+                    <span
+                      className={`block h-1.5 rounded-full transition-all duration-300 ${
+                        isActive ? "w-6 bg-neutral-900 dark:bg-white shadow-xs" : "w-1.5 bg-neutral-300 dark:bg-white/20 group-hover/dot:bg-neutral-400"
+                      }`}
+                    />
+                  </button>
                 );
               })}
             </div>
@@ -311,7 +360,8 @@ export function DualHeroBanner() {
                     className={`relative overflow-hidden rounded-2xl border ${banner.bgGradient} border-slate-200/90 dark:border-white/10 ${banner.textColor}`}
                   >
                     <a
-                      href="#catalog-section"
+                      href={banner.link}
+                      onClick={handleBannerClick(banner.link)}
                       className="block p-4.5 min-h-[195px] flex items-center justify-between cursor-pointer"
                     >
                       {/* Left Side: Tag, Title, Subtitle, Price, Button */}
@@ -377,10 +427,15 @@ export function DualHeroBanner() {
                 type="button"
                 onClick={() => setMobileSlide(dotIdx)}
                 aria-label={`Go to slide ${dotIdx + 1}`}
-                className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
-                  isActive ? "w-6 bg-neutral-950 dark:bg-white shadow-xs" : "w-1.5 bg-neutral-300 dark:bg-neutral-700"
-                }`}
-              />
+                aria-current={isActive}
+                className="py-2.5 px-1 cursor-pointer"
+              >
+                <span
+                  className={`block h-1.5 rounded-full transition-all duration-300 ${
+                    isActive ? "w-6 bg-neutral-950 dark:bg-white shadow-xs" : "w-1.5 bg-neutral-300 dark:bg-neutral-700"
+                  }`}
+                />
+              </button>
             );
           })}
         </div>

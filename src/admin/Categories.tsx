@@ -8,9 +8,10 @@ import { DataTable, StatusBadge, PageHeader, SlideOver, ConfirmDialog, Btn, Form
 import type { AdminCategory } from "./shared/types";
 import { API_ENDPOINTS } from "@/config/api";
 import { api } from "@/lib/api-client";
-import { useStoreProducts } from "@/components/store/data";
+import { useStoreProducts, refreshCategories } from "@/components/store/data";
+import { CategoryIcon, CATEGORY_ICON_OPTIONS, DEFAULT_CATEGORY_ICON, resolveCategoryIcon } from "@/lib/category-icons";
 
-const blank: AdminCategory = { id: "", name: "", slug: "", description: "", sortOrder: 0, productCount: 0, visible: true };
+const blank: AdminCategory = { id: "", name: "", slug: "", description: "", icon: DEFAULT_CATEGORY_ICON, sortOrder: 0, productCount: 0, visible: true };
 
 export default function Categories() {
   const [cats, setCats] = useState<AdminCategory[]>([]);
@@ -48,7 +49,7 @@ export default function Categories() {
       } else {
         await api.post(API_ENDPOINTS.categories, edit);
       }
-      await loadCategories();
+      await Promise.all([loadCategories(), refreshCategories()]);
       setDrawerOpen(false);
       setEdit(null);
       toast.success(isExisting ? "Category updated." : "Category created.");
@@ -63,7 +64,7 @@ export default function Categories() {
     setDeleteTarget(null);
     try {
       await api.delete(`${API_ENDPOINTS.categories}/${encodeURIComponent(target.id)}`);
-      await loadCategories();
+      await Promise.all([loadCategories(), refreshCategories()]);
       toast.success(`Deleted "${target.name}".`);
     } catch (e: any) {
       toast.error(e?.message || "Could not delete the category.");
@@ -71,7 +72,7 @@ export default function Categories() {
   };
 
   const columns = [
-    { key: "icon", label: "", width: "40px", render: (c: AdminCategory) => <span className="text-base">{c.icon || "📁"}</span> },
+    { key: "icon", label: "", width: "52px", render: (c: AdminCategory) => <span className="grid h-8 w-8 place-items-center rounded-lg bg-gray-100 text-gray-800"><CategoryIcon icon={c.icon} slug={c.slug} className="h-4.5 w-4.5" /></span> },
     { key: "name", label: "Category", sortable: true, render: (c: AdminCategory) => (<div><div className="text-xs font-medium text-gray-900">{c.name}</div><div className="text-[11px] text-gray-400">/{c.slug}</div></div>) },
     { key: "description", label: "Description", render: (c: AdminCategory) => <span className="text-xs text-gray-600 truncate max-w-[200px] block">{c.description}</span> },
     {
@@ -98,7 +99,7 @@ export default function Categories() {
       <DataTable columns={columns} data={cats} keyField="id" searchPlaceholder="Search categories..." pageSize={20}
         actions={(c: AdminCategory) => (
           <div className="flex items-center gap-1">
-            <button onClick={() => { setEdit({ ...c }); setDrawerOpen(true); }} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"><Edit2 size={13} /></button>
+            <button onClick={() => { setEdit({ ...c, icon: resolveCategoryIcon(c.icon, c.slug) }); setDrawerOpen(true); }} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"><Edit2 size={13} /></button>
             <button onClick={() => setDeleteTarget(c)} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"><Trash2 size={13} /></button>
           </div>
         )}
@@ -109,7 +110,7 @@ export default function Categories() {
           <FormField label="Name" required><Input value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-") })} /></FormField>
           <FormField label="Slug"><Input value={edit.slug} onChange={e => setEdit({ ...edit, slug: e.target.value })} /></FormField>
           <FormField label="Description"><Textarea rows={3} value={edit.description} onChange={e => setEdit({ ...edit, description: e.target.value })} /></FormField>
-          <FormField label="Icon (emoji)"><Input value={edit.icon || ""} onChange={e => setEdit({ ...edit, icon: e.target.value })} /></FormField>
+          <FormField label="Icon" hint="Shown in the storefront category bar and mobile menu."><IconPicker value={resolveCategoryIcon(edit.icon, edit.slug)} onChange={icon => setEdit({ ...edit, icon })} /></FormField>
           <FormField label="Sort Order"><Input type="number" value={edit.sortOrder} onChange={e => setEdit({ ...edit, sortOrder: Number(e.target.value) })} /></FormField>
           <div className="mt-3"><Toggle checked={edit.visible} onChange={v => setEdit({ ...edit, visible: v })} label="Visible on storefront" /></div>
           <FormField label="SEO Title"><Input value={edit.metaTitle || ""} onChange={e => setEdit({ ...edit, metaTitle: e.target.value })} /></FormField>
@@ -117,6 +118,32 @@ export default function Categories() {
         </>)}
       </SlideOver>
       <ConfirmDialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={remove} title="Delete Category" message={`Delete "${deleteTarget?.name}"? Products in this category will become uncategorized.`} confirmLabel="Delete" destructive />
+    </div>
+  );
+}
+
+function IconPicker({ value, onChange }: { value: string; onChange: (icon: string) => void }) {
+  return (
+    <div className="grid grid-cols-6 gap-1.5 rounded-lg border border-gray-200 p-2 max-h-56 overflow-y-auto">
+      {CATEGORY_ICON_OPTIONS.map((opt) => {
+        const selected = opt.key === value;
+        return (
+          <button
+            key={opt.key}
+            type="button"
+            title={opt.label}
+            aria-label={opt.label}
+            aria-pressed={selected}
+            onClick={() => onChange(opt.key)}
+            className={`flex flex-col items-center gap-1 rounded-lg px-1 py-2 transition-colors ${
+              selected ? "bg-neutral-900 text-white" : "text-gray-700 hover:bg-gray-100"
+            }`}
+          >
+            <CategoryIcon icon={opt.key} className="h-5 w-5" />
+            <span className={`text-[9.5px] leading-tight truncate max-w-full ${selected ? "text-white" : "text-gray-500"}`}>{opt.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

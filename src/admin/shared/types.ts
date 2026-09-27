@@ -533,7 +533,18 @@ export interface AdminStaff {
   lastLogin?: string;
   createdAt: string;
   permissions: string[];
+  failedLoginAttempts?: number;
+  lockedUntil?: string | null;
 }
+
+/** What the signed-in staff member may do (from GET /api/auth/admin/me). */
+export interface AdminAccess {
+  superAdmin: boolean;
+  roles: string[];
+  permissions: Record<string, string[]>;
+}
+
+export type PermissionCatalog = Record<string, { label: string; actions: string[] }>;
 
 // ── Roles ───────────────────────────────────────────────────────────────────
 
@@ -558,9 +569,13 @@ export interface AdminAuditLog {
   entityType?: string;
   entityId?: string;
   details: string;
-  previousValue?: string;
-  newValue?: string;
+  previousValue?: unknown;
+  newValue?: unknown;
   ip?: string;
+  userId?: string;
+  email?: string;
+  status?: "Success" | "Failed";
+  device?: string;
 }
 
 // ── Transactions ────────────────────────────────────────────────────────────

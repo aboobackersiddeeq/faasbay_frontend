@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import {
-  Search,
   Heart,
   ShoppingCart,
   User,
@@ -13,10 +12,8 @@ import {
   ChevronUp,
   LogIn,
   Headphones,
-  Watch,
   Keyboard,
   BatteryCharging,
-  Gamepad2,
   Sparkles,
   ShieldCheck,
   Truck,
@@ -24,21 +21,17 @@ import {
   Layers,
   Smartphone,
   Car,
-  HeartPulse,
   UtensilsCrossed,
-  Lightbulb,
-  Box,
-  Luggage,
   Home,
-  ShieldAlert,
-  BookOpen,
-  Wrench,
-  Smile,
 } from "lucide-react";
 import faasbayLogo from "@/assets/faasbay-logo.png";
 import { HeaderQuickNav } from "./HeaderQuickNav";
+import { SearchBox } from "./SearchBox";
 import { useCart } from "@/hooks/use-cart";
+import { useWishlist, openWishlist } from "@/hooks/use-wishlist";
 import { scrollToSection } from "@/lib/scroll-to-section";
+import { useStoreCategories } from "@/components/store/data";
+import { CategoryIcon } from "@/lib/category-icons";
 
 export function Header() {
   const {
@@ -49,22 +42,10 @@ export function Header() {
     selectedCategory,
     setSelectedCategory,
     recordCategoryView,
-    searchQuery,
-    setSearchQuery,
   } = useCart();
-  const [searchTerm, setSearchTerm] = useState(searchQuery || "");
+  const { wishlistCount } = useWishlist();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
-
-  React.useEffect(() => {
-    setSearchTerm(searchQuery || "");
-  }, [searchQuery]);
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchTerm.trim()) return;
-    scrollToSection(["catalog-section", "categories"]);
-  };
 
   const handleCategoryClick = (id: string) => {
     setSelectedCategory(id);
@@ -84,100 +65,7 @@ export function Header() {
     { id: "kitchen-dining", label: "Kitchen & Dining", icon: UtensilsCrossed },
   ];
 
-  const categories = [
-    { id: "all", label: "All Products", icon: Layers, desc: "Explore entire catalogue" },
-    {
-      id: "mobile-electronics",
-      label: "Mobile & Electronics",
-      icon: Smartphone,
-      desc: "Smartphones, chargers & accessories",
-    },
-    {
-      id: "audio-speakers",
-      label: "Audio & Speakers",
-      icon: Headphones,
-      desc: "Studio acoustics & wireless audio",
-    },
-    {
-      id: "car-accessories",
-      label: "Car Accessories",
-      icon: Car,
-      desc: "Dashboard mounts, chargers & tech",
-    },
-    {
-      id: "home-cleaning",
-      label: "Home Cleaning & Appliances",
-      icon: Sparkles,
-      desc: "Vacuum, sprays & smart cleaners",
-    },
-    {
-      id: "health-wellness",
-      label: "Health, Wellness & Massage",
-      icon: HeartPulse,
-      desc: "Massagers & relaxation essentials",
-    },
-    {
-      id: "beauty-personal-care",
-      label: "Beauty & Personal Care",
-      icon: Smile,
-      desc: "Grooming, skincare & haircare",
-    },
-    {
-      id: "kitchen-dining",
-      label: "Kitchen & Dining",
-      icon: UtensilsCrossed,
-      desc: "Cookware, organizers & dinnerware",
-    },
-    {
-      id: "lighting",
-      label: "Lights & Home Lighting",
-      icon: Lightbulb,
-      desc: "Ambient LEDs & modern lamps",
-    },
-    { id: "kids-toys", label: "Kids & Toys", icon: Gamepad2, desc: "Educational toys & play sets" },
-    {
-      id: "watches-fashion",
-      label: "Watches & Fashion Accessories",
-      icon: Watch,
-      desc: "Luxury watches, bands & accessories",
-    },
-    {
-      id: "storage-organizers",
-      label: "Storage & Organizers",
-      icon: Box,
-      desc: "Modular drawer & closet bins",
-    },
-    {
-      id: "travel-products",
-      label: "Travel Products",
-      icon: Luggage,
-      desc: "Suitcases, backpacks & travel gear",
-    },
-    {
-      id: "home-lifestyle",
-      label: "Home & Lifestyle",
-      icon: Home,
-      desc: "Modern home decor & living essentials",
-    },
-    {
-      id: "pest-control",
-      label: "Pest Control",
-      icon: ShieldAlert,
-      desc: "Ultrasonic repellers & safe pest solutions",
-    },
-    {
-      id: "stationery-office",
-      label: "Stationery & Office",
-      icon: BookOpen,
-      desc: "Desk journals, organizers & pens",
-    },
-    {
-      id: "utility-tools",
-      label: "Utility & Tools",
-      icon: Wrench,
-      desc: "Multi-tools, hardware & DIY gear",
-    },
-  ];
+  const categories = useStoreCategories();
 
   const INITIAL_CATEGORY_COUNT = 6; // Shows All Products + first 5 categories
   const displayedCategories = showAllCategories
@@ -199,37 +87,27 @@ export function Header() {
         </a>
 
         {/* Center: Search Bar */}
-        <form
-          onSubmit={handleSearchSubmit}
-          className="flex max-w-xl flex-1 items-center rounded-full border border-input/80 bg-secondary/60 backdrop-blur-md pl-4 pr-1.5 py-1.5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-neutral-400 focus-within:bg-surface focus-within:ring-2 focus-within:ring-neutral-400/10 transition-all"
-        >
-          <input
-            type="search"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search ANC audio, smartwatches, mechanical keyboards, power docks..."
-            aria-label="Search products"
-            className="w-full bg-transparent text-xs sm:text-[13px] text-foreground outline-none placeholder:text-muted-foreground font-medium"
-          />
-          <button
-            type="submit"
-            aria-label="Search button"
-            className="grid h-8 w-8 place-items-center rounded-full bg-neutral-900 text-white hover:bg-neutral-800 shadow-[0_2px_8px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.2)] active:scale-95 transition-all cursor-pointer"
-          >
-            <Search className="h-3.5 w-3.5 stroke-[2.2]" />
-          </button>
-        </form>
+        <SearchBox
+          variant="desktop"
+          placeholder="Search ANC audio, smartwatches, mechanical keyboards, power docks..."
+        />
 
         {/* Right: Quick Action Icons */}
         <nav className="flex items-center gap-1">
-          {/* <button
+          <button
             type="button"
-            aria-label="Wishlist"
-            className="grid h-9 w-9 place-items-center rounded-full text-foreground transition-colors hover:bg-secondary cursor-pointer"
+            onClick={openWishlist}
+            aria-label={`Wishlist, ${wishlistCount} items`}
+            className="relative grid h-9 w-9 place-items-center rounded-full text-foreground transition-colors hover:bg-secondary cursor-pointer"
           >
             <Heart className="h-[18px] w-[18px]" />
+            {wishlistCount > 0 && (
+              <span className="absolute right-0 top-0 grid h-4 min-w-4 place-items-center rounded-full bg-neutral-900 px-1 text-[9.5px] font-bold text-white shadow-xs animate-in zoom-in-50">
+                {wishlistCount}
+              </span>
+            )}
           </button>
-          <button
+          {/* <button
             type="button"
             aria-label="Notifications"
             className="grid h-9 w-9 place-items-center rounded-full text-foreground transition-colors hover:bg-secondary cursor-pointer"
@@ -298,11 +176,16 @@ export function Header() {
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => scrollToSection(["catalog-section", "categories"])}
-              aria-label="Wishlist"
-              className="grid h-9 w-9 place-items-center rounded-xl bg-secondary/60 text-foreground active:scale-90 transition-all cursor-pointer border border-border/40"
+              onClick={openWishlist}
+              aria-label={`Wishlist, ${wishlistCount} items`}
+              className="relative grid h-9 w-9 place-items-center rounded-xl bg-secondary/60 text-foreground active:scale-90 transition-all cursor-pointer border border-border/40"
             >
               <Heart className="h-4.5 w-4.5 stroke-[2]" />
+              {wishlistCount > 0 && (
+                <span className="absolute -right-1 -top-1 grid h-4.5 min-w-4.5 place-items-center rounded-full bg-rose-500 text-white px-1 text-[9px] font-black shadow-xs ring-2 ring-surface animate-in zoom-in-50">
+                  {wishlistCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -325,33 +208,7 @@ export function Header() {
         </div>
 
         {/* Row 2: Full-Width Prominent Search Bar */}
-        <form
-          onSubmit={handleSearchSubmit}
-          className="relative flex items-center rounded-xl border border-black/[0.08] dark:border-white/15 bg-neutral-100/90 dark:bg-neutral-800/70 px-3.5 py-2 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-neutral-900 dark:focus-within:border-white focus-within:bg-surface transition-all"
-        >
-          <Search className="h-4 w-4 text-muted-foreground shrink-0 stroke-[2.2]" />
-          <input
-            type="search"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search audio, smartwatches, keyboards..."
-            aria-label="Search products"
-            className="min-w-0 flex-1 bg-transparent px-2.5 text-[13px] text-foreground outline-none placeholder:text-muted-foreground font-medium"
-          />
-          {searchTerm && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchTerm("");
-                setSearchQuery("");
-              }}
-              aria-label="Clear search"
-              className="mr-1 grid h-5 w-5 place-items-center rounded-full bg-muted text-muted-foreground hover:text-foreground active:scale-90"
-            >
-              <X className="h-3 w-3 stroke-[2.5]" />
-            </button>
-          )}
-        </form>
+        <SearchBox variant="mobile" placeholder="Search audio, smartwatches, keyboards..." />
       </div>
 
       {/* 3. MOBILE SLIDE-OUT CATEGORY DRAWER / SHEET */}
@@ -458,7 +315,6 @@ export function Header() {
               {/* Categories List (Initial 5 categories + expand toggle) */}
               <div className="p-2 space-y-1">
                 {displayedCategories.map((cat) => {
-                  const Icon = cat.icon;
                   const isSelected = selectedCategory === cat.id;
                   return (
                     <button
@@ -479,7 +335,7 @@ export function Header() {
                               : "bg-secondary text-foreground group-hover:bg-neutral-950 group-hover:text-white"
                           }`}
                         >
-                          <Icon className="h-4 w-4" />
+                          <CategoryIcon icon={cat.icon} slug={cat.id} className="h-4 w-4" />
                         </div>
                         <div className="min-w-0">
                           <p
@@ -496,7 +352,7 @@ export function Header() {
                               isSelected ? "text-white/80" : "text-muted-foreground"
                             }`}
                           >
-                            {cat.desc}
+                            {cat.description}
                           </p>
                         </div>
                       </div>
@@ -512,6 +368,7 @@ export function Header() {
                 })}
 
                 {/* View More Categories / Show Less Button */}
+                {hiddenCount > 0 && (
                 <button
                   type="button"
                   onClick={() => setShowAllCategories((prev) => !prev)}
@@ -529,6 +386,7 @@ export function Header() {
                     </>
                   )}
                 </button>
+                )}
               </div>
             </div>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import type { Product } from "@/components/store/data";
 
@@ -18,13 +18,51 @@ export function getStoredWishlistIds(): string[] {
   return [];
 }
 
+function writeWishlistIds(next: string[]) {
+  try {
+    localStorage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(next));
+    window.dispatchEvent(new Event("faasbay_wishlist_updated"));
+  } catch (e) {
+    console.error("Failed writing wishlist:", e);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Wishlist drawer open state — shared by the header, mobile tab bar and the
+// drawer itself (mounted once in __root).
+// ---------------------------------------------------------------------------
+let wishlistDrawerOpen = false;
+const drawerListeners = new Set<() => void>();
+
+function setWishlistDrawerOpen(open: boolean) {
+  wishlistDrawerOpen = open;
+  drawerListeners.forEach((l) => l());
+}
+
+export const openWishlist = () => setWishlistDrawerOpen(true);
+export const closeWishlist = () => setWishlistDrawerOpen(false);
+
+export function useWishlistDrawer() {
+  const isOpen = useSyncExternalStore(
+    (listener) => {
+      drawerListeners.add(listener);
+      return () => drawerListeners.delete(listener);
+    },
+    () => wishlistDrawerOpen,
+    () => false,
+  );
+  return { isWishlistOpen: isOpen, openWishlist, closeWishlist };
+}
+
 export function useWishlist() {
-  const [wishlistIds, setWishlistIds] = useState<string[]>(() => getStoredWishlistIds());
+  // Start empty and read storage after mount so server and client render match.
+  const [wishlistIds, setWishlistIds] = useState<string[]>([]);
 
   useEffect(() => {
     const sync = () => {
       setWishlistIds(getStoredWishlistIds());
     };
+    sync();
     window.addEventListener("faasbay_wishlist_updated", sync);
     window.addEventListener("storage", sync);
     return () => {
@@ -53,12 +91,16 @@ export function useWishlist() {
       toast.success(`Added "${product.title || "item"}" to wishlist ❤️`);
     }
 
-    try {
-      localStorage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(next));
-      window.dispatchEvent(new Event("faasbay_wishlist_updated"));
-    } catch (e) {
-      console.error("Failed writing wishlist:", e);
-    }
+    writeWishlistIds(next);
+  }, []);
+
+  /** Removes without a toast — used when moving an item to the bag. */
+  const removeFromWishlist = useCallback((productId: string) => {
+    writeWishlistIds(getStoredWishlistIds().filter((id) => id !== String(productId)));
+  }, []);
+
+  const clearWishlist = useCallback(() => {
+    writeWishlistIds([]);
   }, []);
 
   return {
@@ -66,5 +108,7 @@ export function useWishlist() {
     wishlistCount: wishlistIds.length,
     isWishlisted,
     toggleWishlist,
+    removeFromWishlist,
+    clearWishlist,
   };
 }

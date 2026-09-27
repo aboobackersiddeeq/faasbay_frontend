@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CartProvider } from "../hooks/use-cart";
 import { CartDrawer } from "../components/store/CartDrawer";
+import { WishlistDrawer } from "@/components/store/WishlistDrawer";
 import { CheckoutModal } from "../components/store/CheckoutModal";
 import { ProductDetailModal } from "../components/store/ProductDetailModal";
 import { ExitIntentReminder } from "../components/store/ExitIntentReminder";
@@ -172,6 +173,7 @@ function RootComponent() {
         {/* Global Interactive Overlays */}
         <Toaster position="top-right" richColors />
         <CartDrawer />
+        <WishlistDrawer />
         <CheckoutModal />
         <ProductDetailModal />
         <ExitIntentReminder />

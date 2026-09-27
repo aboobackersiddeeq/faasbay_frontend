@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Home, Layers, Search, Heart, ShoppingBag } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
-import { useWishlist } from "@/hooks/use-wishlist";
+import { useWishlist, openWishlist } from "@/hooks/use-wishlist";
 
 export function MobileTabBar() {
   const [activeTab, setActiveTab] = useState("home");
@@ -24,8 +24,7 @@ export function MobileTabBar() {
         if (searchInput) searchInput.focus();
       }, 300);
     } else if (id === "wishlist") {
-      const el = document.getElementById("catalog-section") || document.querySelector("main");
-      if (el) el.scrollIntoView({ behavior: "smooth" });
+      openWishlist();
     }
   };
 

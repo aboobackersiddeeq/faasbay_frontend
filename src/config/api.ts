@@ -56,7 +56,10 @@ export const API_ENDPOINTS = {
 
   // Admin
   staff: `${API_BASE_URL}/api/admin/staff`,
+  roles: `${API_BASE_URL}/api/admin/roles`,
   auditLogs: `${API_BASE_URL}/api/admin/audit-logs`,
+  security: `${API_BASE_URL}/api/admin/security`,
+  changePassword: `${API_BASE_URL}/api/auth/admin/change-password`,
   transactions: `${API_BASE_URL}/api/admin/transactions`,
   settings: `${API_BASE_URL}/api/settings`,
 } as const;
