@@ -141,7 +141,8 @@ export function InvoiceModal({ order, onClose }: InvoiceModalProps) {
   const [activeView, setActiveView] = useState<"invoice" | "shipping_label">("invoice");
   const isCOD = isCodOrder(safeOrder);
 
-  // 100% Reliable Print Function using isolated hidden iframe
+  // Print the exact on-screen document inside an isolated iframe that reuses the
+  // app's own compiled stylesheets, and only prints once styles, fonts and images are ready.
   const handlePrint = () => {
     const printContent = document.getElementById("printable-document");
     if (!printContent) {
@@ -149,99 +150,126 @@ export function InvoiceModal({ order, onClose }: InvoiceModalProps) {
       return;
     }
 
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "none";
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (!doc) {
-      window.print();
-      return;
-    }
-    const customerName = (safeOrder.customerName || safeOrder.shippingAddress?.name || safeOrder.customer?.name || "Customer").trim();
-    const cleanCustomerName = customerName.replace(/[/\\?%*:|"<>]/g, "");
-    const cleanOrderId = (safeOrder.orderId || "FB-ORDER").replace(/[/\\?%*:|"<>]/g, "");
+    const customerName = ((safeOrder as { customerName?: string }).customerName || safeOrder.shippingAddress?.name || safeOrder.customer?.name || "Customer").trim();
+    const cleanCustomerName = customerName.replace(/[/\?%*:|"<>]/g, "");
+    const cleanOrderId = (safeOrder.orderId || "FB-ORDER").replace(/[/\?%*:|"<>]/g, "");
     const docTitle =
       activeView === "invoice"
         ? `Faasbay - ${cleanCustomerName} - ${cleanOrderId}`
         : `Faasbay - ${cleanCustomerName} - Shipping Label - ${cleanOrderId}`;
 
-    const originalParentTitle = document.title;
-    document.title = docTitle;
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    // Keep a real A4-ish viewport so responsive (sm:) classes resolve like the on-screen modal.
+    Object.assign(iframe.style, {
+      position: "fixed",
+      left: "-10000px",
+      top: "0",
+      width: "794px",
+      height: "1123px",
+      border: "0",
+      opacity: "0",
+      pointerEvents: "none",
+    });
+    document.body.appendChild(iframe);
+
+    const win = iframe.contentWindow;
+    const doc = win?.document;
+    if (!win || !doc) {
+      iframe.remove();
+      window.print();
+      return;
+    }
+
+    // Reuse the exact stylesheets the app is rendering with (Tailwind build, fonts, theme tokens).
+    const appStyles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+      .map((node) => node.outerHTML)
+      .join("\n");
 
     doc.open();
-    doc.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>${docTitle}</title>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <link rel="preconnect" href="https://fonts.googleapis.com">
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-          <script src="https://cdn.tailwindcss.com"></script>
-          <style>
-            @page {
-              size: A4 portrait;
-              margin: 10mm;
-            }
-            * {
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              color-adjust: exact !important;
-              box-sizing: border-box;
-              font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            }
-            body {
-              margin: 0;
-              padding: 0;
-              background: #ffffff !important;
-              color: #0f172a !important;
-            }
-            .bg-\\[\\#10b981\\] {
-              background-color: #10b981 !important;
-              color: #ffffff !important;
-            }
-            .bg-amber-500 {
-              background-color: #f59e0b !important;
-              color: #ffffff !important;
-            }
-            .text-\\[\\#10b981\\] {
-              color: #10b981 !important;
-            }
-            .border-slate-200 {
-              border-color: #e2e8f0 !important;
-            }
-            .border-slate-900 {
-              border-color: #0f172a !important;
-            }
-          </style>
-        </head>
-        <body>
-          <div style="padding: 10px; max-width: 760px; margin: 0 auto;">
-            ${printContent.innerHTML}
-          </div>
-        </body>
-      </html>
-    `);
+    doc.write(`<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <base href="${document.baseURI}" />
+    <title>${docTitle}</title>
+    ${appStyles}
+    <style>
+      @page { size: A4 portrait; margin: 10mm; }
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #0f172a;
+        overflow: visible !important;
+        height: auto !important;
+      }
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      #printable-document {
+        max-width: 100% !important;
+        width: 100% !important;
+        margin: 0 auto !important;
+        box-shadow: none !important;
+        transition: none !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      #printable-document tr, #printable-document img { break-inside: avoid; }
+    </style>
+  </head>
+  <body>${printContent.outerHTML}</body>
+</html>`);
     doc.close();
 
-    setTimeout(() => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      setTimeout(() => {
-        document.title = originalParentTitle;
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe);
-        }
-      }, 3000);
-    }, 450);
+    const originalParentTitle = document.title;
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      document.title = originalParentTitle;
+      iframe.remove();
+    };
+
+    const waitForAssets = async () => {
+      const sheets = Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')).map(
+        (link) =>
+          link.sheet
+            ? Promise.resolve()
+            : new Promise<void>((resolve) => {
+                link.addEventListener("load", () => resolve(), { once: true });
+                link.addEventListener("error", () => resolve(), { once: true });
+              }),
+      );
+      const images = Array.from(doc.images).map((img) =>
+        img.complete
+          ? Promise.resolve()
+          : new Promise<void>((resolve) => {
+              img.addEventListener("load", () => resolve(), { once: true });
+              img.addEventListener("error", () => resolve(), { once: true });
+            }),
+      );
+      const timeout = new Promise<void>((resolve) => setTimeout(resolve, 4000));
+      await Promise.race([Promise.all([...sheets, ...images]), timeout]);
+      try {
+        await Promise.race([doc.fonts?.ready, timeout]);
+      } catch {
+        // fonts API unavailable — continue
+      }
+      // Let layout settle for one frame before printing.
+      await new Promise<void>((resolve) => win.requestAnimationFrame(() => resolve()));
+    };
+
+    void waitForAssets().then(() => {
+      document.title = docTitle; // used by browsers as the default PDF file name
+      win.addEventListener("afterprint", () => setTimeout(cleanup, 100), { once: true });
+      win.focus();
+      win.print();
+      // Safety net in case afterprint never fires (some browsers).
+      setTimeout(cleanup, 60000);
+    });
   };
 
   const invoiceNo = safeOrder.invoiceId || `#FB-${(safeOrder.orderId || "10291").replace(/[^0-9]/g, "") || "10291"}`;

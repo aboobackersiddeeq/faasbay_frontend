@@ -388,6 +388,7 @@ function AdminManagementPortal() {
               if (dest === "orders") navigateTo("orders", "orders");
               else if (dest === "inventory") navigateTo("catalog", "inventory");
               else if (dest === "reviews") navigateTo("catalog", "products");
+              else if (dest === "products") navigateTo("catalog", "products");
               else navigateTo(dest as PrimaryTab);
             }}
           />

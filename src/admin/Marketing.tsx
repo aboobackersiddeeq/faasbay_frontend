@@ -26,6 +26,20 @@ const initCoupons: AdminCoupon[] = [
 
 const blankCoupon: AdminCoupon = { code: "", description: "", discountType: "Percentage", discountValue: 10, minOrderAmount: 0, usedCount: 0, totalRevenue: 0, totalDiscountGiven: 0, ordersGenerated: 0, conversionRate: 0, status: "Draft", createdAt: new Date().toISOString().slice(0, 10) };
 
+// The API stores discountType as "percentage" / "fixed" / "free_shipping" and an
+// `isActive` flag; the admin UI works with "Percentage" / "Fixed" / "Free Shipping"
+// and a `status`. Map on load so types and statuses display correctly.
+function fromApiCoupon(row: any): AdminCoupon {
+  const type = String(row.discountType || "").toLowerCase();
+  const discountType =
+    type === "percentage" ? "Percentage" : type === "fixed" ? "Fixed" : type === "free_shipping" ? "Free Shipping" : row.discountType;
+  return {
+    ...blankCoupon,
+    ...row,
+    discountType,
+    status: row.status || (row.isActive === false ? "Disabled" : "Active"),
+  };
+}
 
 export function CouponsPage() {
   // Coupons live in MongoDB so the codes the admin creates are the ones checkout honours.
@@ -34,8 +48,8 @@ export function CouponsPage() {
 
   const loadCoupons = React.useCallback(async () => {
     try {
-      const rows = await api.get<AdminCoupon[]>(API_ENDPOINTS.coupons);
-      setCoupons(Array.isArray(rows) ? rows : []);
+      const rows = await api.get<any[]>(API_ENDPOINTS.coupons);
+      setCoupons(Array.isArray(rows) ? rows.map(fromApiCoupon) : []);
     } catch (e: any) {
       toast.error(e?.message || "Could not load coupons.");
     } finally {
@@ -55,11 +69,21 @@ export function CouponsPage() {
   const [localCouponConfig, setLocalCouponConfig] = useState<FeaturedCouponConfig>(featuredCoupon);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
-  const handleSaveHomepageCoupon = (e: React.FormEvent) => {
+  // The CMS loads asynchronously; keep the form in sync with what is actually saved in the database.
+  React.useEffect(() => {
+    setLocalCouponConfig(featuredCoupon);
+  }, [featuredCoupon]);
+
+  const handleSaveHomepageCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateFeaturedCoupon(localCouponConfig);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+    try {
+      await updateFeaturedCoupon(localCouponConfig);
+      toast.success("Homepage coupon banner updated.");
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch (err: any) {
+      toast.error(err?.message || "Could not update the homepage coupon banner.");
+    }
   };
 
   const save = async () => {
@@ -205,7 +229,9 @@ export function CouponsPage() {
               onChange={(v) => {
                 const next = { ...localCouponConfig, active: v };
                 setLocalCouponConfig(next);
-                updateFeaturedCoupon(next);
+                updateFeaturedCoupon(next).catch((err: any) =>
+                  toast.error(err?.message || "Could not update the homepage coupon banner.")
+                );
               }}
               label="Show on Homepage"
             />

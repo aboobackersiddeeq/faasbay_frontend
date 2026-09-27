@@ -10,6 +10,7 @@ import {
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useCart } from "@/hooks/use-cart";
 import { scrollToSection } from "@/lib/scroll-to-section";
 
@@ -66,33 +67,26 @@ export function HeaderQuickNav() {
   } = useCart();
 
   const activeId = quickNavFilter || "for-you";
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  const handleNavClick = (item: QuickNavItem) => {
-    if (item.id === "for-you") {
-      setSelectedCategory("all");
-      setSearchQuery("");
-      setQuickNavFilter(null);
+  const handleNavClick = async (item: QuickNavItem) => {
+    const filter = item.id === "for-you" ? null : item.id;
+    setSelectedCategory("all");
+    setSearchQuery("");
+    setQuickNavFilter(filter);
+
+    // The filtered catalog only exists on the home page — from any other page
+    // (product, cart, policy…) go there first, then scroll to it.
+    if (pathname !== "/") {
+      await navigate({ to: "/" });
+      if (!filter) return; // navigation already lands at the top
+    }
+
+    if (filter) {
+      scrollToSection("catalog-section");
+    } else {
       window.scrollTo({ top: 0, behavior: "smooth" });
-    } else if (item.id === "new-arrivals") {
-      setSelectedCategory("all");
-      setSearchQuery("");
-      setQuickNavFilter("new-arrivals");
-      scrollToSection("catalog-section");
-    } else if (item.id === "best-sellers") {
-      setSelectedCategory("all");
-      setSearchQuery("");
-      setQuickNavFilter("best-sellers");
-      scrollToSection("catalog-section");
-    } else if (item.id === "todays-deals") {
-      setSelectedCategory("all");
-      setSearchQuery("");
-      setQuickNavFilter("todays-deals");
-      scrollToSection("catalog-section");
-    } else if (item.id === "offers") {
-      setSelectedCategory("all");
-      setSearchQuery("");
-      setQuickNavFilter("offers");
-      scrollToSection("catalog-section");
     }
   };
 

@@ -22,6 +22,7 @@ export function CartDrawer() {
     discount,
     discountCode,
     appliedCoupon,
+    appliedCouponLabel,
     shippingFee,
     total,
     freeShippingThreshold,
@@ -49,11 +50,11 @@ export function CartDrawer() {
     setIsApplyingCoupon(true);
     setCouponError(null);
     try {
-      const success = await applyCoupon(couponInput);
-      if (success) {
+      const result = await applyCoupon(couponInput);
+      if (result.ok) {
         setCouponInput("");
       } else {
-        setCouponError("Invalid or expired coupon code");
+        setCouponError(result.message || "Invalid or expired coupon code");
       }
     } finally {
       setIsApplyingCoupon(false);
@@ -231,7 +232,8 @@ export function CartDrawer() {
                   <div className="flex items-center gap-1.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                     <span>
-                      Coupon <strong>{appliedCoupon}</strong> applied (10% OFF)
+                      Coupon <strong>{appliedCoupon}</strong> applied
+                      {appliedCouponLabel ? ` (${appliedCouponLabel})` : ""}
                     </span>
                   </div>
                   <button

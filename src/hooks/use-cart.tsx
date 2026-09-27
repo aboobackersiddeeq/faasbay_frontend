@@ -48,7 +48,8 @@ interface CartContextType {
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
-  applyCoupon: (code: string) => Promise<boolean>;
+  appliedCouponLabel: string | null;
+  applyCoupon: (code: string) => Promise<{ ok: boolean; message?: string }>;
   removeCoupon: () => void;
   openCart: () => void;
   closeCart: () => void;
@@ -96,6 +97,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [discountCode, setDiscountCode] = useState<string>("");
   const [discountAmountState, setDiscountAmountState] = useState<number>(0);
+  const [appliedCouponLabel, setAppliedCouponLabel] = useState<string | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [buyNowItem, setBuyNowItem] = useState<CartItem | null>(null);
@@ -187,7 +189,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
-        setDiscountAmountState(data.success && data.data ? data.data.discountAmount || 0 : 0);
+        const amount = data.success && data.data ? data.data.discountAmount || 0 : 0;
+        setDiscountAmountState(amount);
+        if (data.success && data.data) {
+          setAppliedCouponLabel(
+            data.data.discountType === "free_shipping" ? "Free shipping" : `₹${Number(amount).toLocaleString("en-IN")} OFF`
+          );
+        } else {
+          setAppliedCouponLabel("Not applicable to current cart");
+        }
       })
       .catch(() => {
         if (!cancelled) setDiscountAmountState(0);
@@ -261,14 +271,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems([]);
     setAppliedCoupon(null);
     setDiscountAmountState(0);
+    setAppliedCouponLabel(null);
   };
 
   // A coupon is only ever "applied" once the backend has confirmed it's real,
   // active, and meets its own rules (min order amount, etc.) against the
   // current subtotal — nothing here is decided client-side.
-  const applyCoupon = async (code: string): Promise<boolean> => {
+  const applyCoupon = async (code: string): Promise<{ ok: boolean; message?: string }> => {
     const clean = code.trim().toUpperCase();
-    if (!clean) return false;
+    if (!clean) return { ok: false, message: "Please enter a coupon code" };
 
     try {
       const res = await fetch(API_ENDPOINTS.couponsApply, {
@@ -279,22 +290,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
 
       if (data.success && data.data) {
+        const { discountType, discountAmount = 0 } = data.data;
         setAppliedCoupon(clean);
         setDiscountCode(clean);
-        setDiscountAmountState(data.data.discountAmount || 0);
-        return true;
+        setDiscountAmountState(discountAmount);
+        setAppliedCouponLabel(
+          discountType === "free_shipping"
+            ? "Free shipping"
+            : `₹${Number(discountAmount).toLocaleString("en-IN")} OFF`
+        );
+        return { ok: true };
       }
+      // Surface the backend's own reason (unknown code, minimum order not met, ...)
+      return { ok: false, message: data.message || "Invalid or expired coupon code" };
     } catch (e) {
       console.error("Could not validate coupon:", e);
+      return { ok: false, message: "Could not reach the server. Please try again." };
     }
-
-    return false;
   };
 
   const removeCoupon = () => {
     setAppliedCoupon(null);
     setDiscountCode("");
     setDiscountAmountState(0);
+    setAppliedCouponLabel(null);
   };
 
   // Active Checkout computations (support both cart checkout and single-item direct Buy Now)
@@ -384,6 +403,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         discount: calculatedDiscount,
         discountCode,
         appliedCoupon,
+        appliedCouponLabel,
         shippingFee,
         total,
         freeShippingThreshold: FREE_SHIPPING_THRESHOLD,

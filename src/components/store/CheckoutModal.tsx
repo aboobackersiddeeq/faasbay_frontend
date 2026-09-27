@@ -24,8 +24,7 @@ import {
 import faasbayLogo from "@/assets/faasbay-logo.png";
 import { useCart } from "@/hooks/use-cart";
 import { API_ENDPOINTS, RAZORPAY_KEY_ID } from "@/config/api";
-import { recordNewAdminOrder } from "@/lib/cloud-orders-sync";
-import type { AdminOrder } from "@/admin/shared/types";
+import { refreshOrders } from "@/lib/cloud-orders-sync";
 
 const loadRazorpayScript = (): Promise<boolean> => {
   return new Promise((resolve) => {
@@ -169,6 +168,9 @@ export function CheckoutModal() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
+  // What the confirmed order actually charged — snapshotted at confirmation,
+  // because clearing the cart / Buy Now item changes every live amount above.
+  const [confirmed, setConfirmed] = useState<{ isCod: boolean; paidNow: number; dueOnDelivery: number } | null>(null);
 
   // Determine COD Advance Delivery Fee (from primary product or fallback to 100)
   const primaryProduct = items[0]?.product;
@@ -197,14 +199,28 @@ export function CheckoutModal() {
     }
   }, [userProfile, isCheckoutOpen]);
 
-  // Pre-load Razorpay SDK
+  // Every checkout starts fresh — otherwise the previous order's success screen
+  // is shown again and the payment gateway is never launched.
+  // Also pre-loads the Razorpay SDK.
   useEffect(() => {
     if (isCheckoutOpen) {
+      setIsSuccess(false);
+      setDesktopStep(1);
+      setMobileStep("delivery");
+      setIsProcessing(false);
+      setFormError("");
+      setOrderNumber("");
+      setConfirmed(null);
       loadRazorpayScript();
     }
   }, [isCheckoutOpen]);
 
   if (!isCheckoutOpen) return null;
+
+  // Success screens show what was actually charged, not the (now cleared) cart.
+  const shownIsCod = confirmed?.isCod ?? isCod;
+  const shownPaidNow = confirmed?.paidNow ?? amountToPayNow;
+  const shownDueOnDelivery = confirmed?.dueOnDelivery ?? amountDueOnDelivery;
 
   const validateShipping = () => {
     if (!name.trim()) {
@@ -268,9 +284,16 @@ export function CheckoutModal() {
         : parseInt(String(i.product.price || "0").replace(/[^\d]/g, ""), 10) || 0,
     }));
 
-    const recordAndFinalizeOrder = async (confirmedOrderId: string, isPaid: boolean, methodLabel: string) => {
-      const finalId = confirmedOrderId || `FB-${Math.floor(100000 + Math.random() * 900000)}`;
-      setOrderNumber(finalId);
+    // The order itself is created server-side (by /razorpay/verify-payment or
+    // POST /orders), priced from catalog data. This only shows the confirmation —
+    // it must NOT post the order again, which would record a duplicate.
+    const finalizeOrder = (savedOrder: any) => {
+      setOrderNumber(savedOrder.orderId);
+      setConfirmed({
+        isCod,
+        paidNow: Number(savedOrder.advancePaid ?? amountToPayNow),
+        dueOnDelivery: Number(savedOrder.codAmountDue ?? amountDueOnDelivery),
+      });
       setIsSuccess(true);
       setDesktopStep(3);
 
@@ -280,73 +303,8 @@ export function CheckoutModal() {
         clearCart();
       }
 
-      // Record in Admin orders storage for real-time tracking
-      const newAdminOrder: AdminOrder = {
-        orderId: finalId,
-        createdAt: new Date().toISOString(),
-        customer: {
-          name: customerPayload.name,
-          email: customerPayload.email,
-          phone: customerPayload.phone,
-        },
-        shippingAddress: {
-          name: customerPayload.name,
-          street: address.trim(),
-          city: city.trim(),
-          state: state,
-          pincode: pincode.trim(),
-          country: "India",
-          phone: customerPayload.phone,
-        },
-        items: items.map((i, idx) => ({
-          productId: i.product.id,
-          title: i.product.title,
-          sku: `FB-${i.product.id || idx + 1}`,
-          quantity: i.quantity,
-          unitPrice:
-            typeof i.product.price === "number"
-              ? i.product.price
-              : parseInt(String(i.product.price || "0").replace(/[^\d]/g, ""), 10) || 0,
-          total:
-            (typeof i.product.price === "number"
-              ? i.product.price
-              : parseInt(String(i.product.price || "0").replace(/[^\d]/g, ""), 10) || 0) * i.quantity,
-          image: i.product.image || i.product.images?.[0] || "",
-        })),
-        subtotal,
-        discount,
-        shippingFee,
-        advancePaid: amountToPayNow,
-        codAmountDue: amountDueOnDelivery,
-        taxAmount: Math.round(total * 0.18),
-        totalAmount: total,
-        paymentMethod: methodLabel,
-        paymentStatus: isCod ? `Advance Paid (₹${amountToPayNow})` : (isPaid ? "Paid" : "Pending"),
-        orderStatus: "Processing",
-        trackingNumber: `TRK-${finalId}-EXP`,
-        courier: "DTDC EXPRESS",
-        notes: [],
-        timeline: [
-          {
-            status: "Order Placed",
-            timestamp: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
-            note: isCod 
-              ? `Advance delivery fee ₹${amountToPayNow} paid online • Collect ₹${amountDueOnDelivery} cash on delivery` 
-              : "Online payment captured & verified",
-          },
-        ],
-      };
-      // Persist the order to MongoDB. If this fails the shopper must know the
-      // order was not recorded, rather than seeing a false confirmation.
-      try {
-        await recordNewAdminOrder(newAdminOrder);
-      } catch (e: any) {
-        setIsProcessing(false);
-        setFormError(
-          e?.message || "The order could not be saved to the server. Please contact support before retrying."
-        );
-        return;
-      }
+      // Let any open admin screen pick up the new order.
+      void refreshOrders().catch(() => {});
 
       // ONLY save customer profile & log in upon actual confirmed order
       loginUser({
@@ -381,11 +339,14 @@ export function CheckoutModal() {
         });
         const data = await res.json();
         setIsProcessing(false);
-        const resolvedId = data.data?.orderId || `FB-${Math.floor(100000 + Math.random() * 900000)}`;
-        await recordAndFinalizeOrder(resolvedId, true, "100% Free Order");
+        if (!res.ok || !data.success || !data.data?.orderId) {
+          setFormError(data.message || "The order could not be placed. Please try again.");
+          return;
+        }
+        finalizeOrder(data.data);
       } catch (err) {
         setIsProcessing(false);
-        await recordAndFinalizeOrder(`FB-${Math.floor(100000 + Math.random() * 900000)}`, true, "100% Free Order");
+        setFormError("Could not reach the server — your order was not placed. Please try again.");
       }
       return;
     }
@@ -413,15 +374,20 @@ export function CheckoutModal() {
             receipt: `rcpt_${Date.now()}`,
           }),
         });
-        if (createRes.ok) {
-          const createData = await createRes.json();
-          if (createData.success && createData.order?.id) {
-            rzpOrderId = createData.order.id;
-            if (createData.keyId) serverKeyId = createData.keyId;
-          }
+        const createData = await createRes.json().catch(() => ({}));
+        if (createRes.ok && createData.success && createData.order?.id) {
+          rzpOrderId = createData.order.id;
+          if (createData.keyId) serverKeyId = createData.keyId;
+        } else {
+          // Never take a payment the server can't then verify and turn into an order.
+          setFormError(createData.message || "Could not start the payment. Please try again.");
+          setIsProcessing(false);
+          return;
         }
       } catch (e) {
-        console.warn("Direct Razorpay client-checkout fallback", e);
+        setFormError("Could not reach the server to start the payment. Please try again.");
+        setIsProcessing(false);
+        return;
       }
 
       // 2. Smart Payment Gateway Setup
@@ -520,14 +486,17 @@ export function CheckoutModal() {
             });
             const verifyData = await verifyRes.json();
             setIsProcessing(false);
-            const resolvedId = verifyData.data?.orderId || `FB-${Math.floor(100000 + Math.random() * 900000)}`;
-            await recordAndFinalizeOrder(resolvedId, true, methodLabel);
+            if (!verifyRes.ok || !verifyData.success || !verifyData.data?.orderId) {
+              setFormError(
+                `${verifyData.message || "Payment could not be verified."} Payment ID: ${response.razorpay_payment_id}`
+              );
+              return;
+            }
+            finalizeOrder(verifyData.data);
           } catch (vErr) {
             setIsProcessing(false);
-            await recordAndFinalizeOrder(
-              `FB-${Math.floor(100000 + Math.random() * 900000)}`, 
-              true, 
-              isCod ? "Cash on Delivery (Advance Paid)" : "Razorpay (Online)"
+            setFormError(
+              `Payment received but we could not confirm your order. Please contact support with Payment ID: ${response.razorpay_payment_id}`
             );
           }
         },
@@ -647,23 +616,23 @@ export function CheckoutModal() {
                 </div>
                 <div className="flex justify-between font-bold text-foreground">
                   <span>Payment Mode:</span>
-                  <span className="text-emerald-600 font-bold uppercase">{isCod ? "Cash on Delivery (Advance Paid)" : "Prepaid (Online)"}</span>
+                  <span className="text-emerald-600 font-bold uppercase">{shownIsCod ? "Cash on Delivery (Advance Paid)" : "Prepaid (Online)"}</span>
                 </div>
-                {isCod ? (
+                {shownIsCod ? (
                   <>
                     <div className="flex justify-between font-bold text-foreground">
                       <span>Advance Delivery Paid:</span>
-                      <span className="text-emerald-600 font-extrabold">₹{amountToPayNow.toLocaleString("en-IN")} (Online Paid)</span>
+                      <span className="text-emerald-600 font-extrabold">₹{shownPaidNow.toLocaleString("en-IN")} (Online Paid)</span>
                     </div>
                     <div className="flex justify-between font-bold text-foreground bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20">
                       <span className="text-amber-800 dark:text-amber-300">Cash to Pay on Delivery:</span>
-                      <span className="text-amber-900 dark:text-amber-200 font-black text-sm">₹{amountDueOnDelivery.toLocaleString("en-IN")}</span>
+                      <span className="text-amber-900 dark:text-amber-200 font-black text-sm">₹{shownDueOnDelivery.toLocaleString("en-IN")}</span>
                     </div>
                   </>
                 ) : (
                   <div className="flex justify-between font-bold text-foreground">
                     <span>Total Amount Paid:</span>
-                    <span className="text-emerald-600 font-black">₹{amountToPayNow.toLocaleString("en-IN")} (100% Free Delivery)</span>
+                    <span className="text-emerald-600 font-black">₹{shownPaidNow.toLocaleString("en-IN")} (100% Free Delivery)</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-foreground">
@@ -1215,23 +1184,23 @@ export function CheckoutModal() {
               </div>
               <div className="flex justify-between text-neutral-500">
                 <span>Payment Mode:</span>
-                <span className="font-bold text-foreground uppercase">{isCod ? "Cash on Delivery" : "Prepaid (Online)"}</span>
+                <span className="font-bold text-foreground uppercase">{shownIsCod ? "Cash on Delivery" : "Prepaid (Online)"}</span>
               </div>
-              {isCod ? (
+              {shownIsCod ? (
                 <>
                   <div className="flex justify-between text-emerald-700 dark:text-emerald-400 font-bold">
                     <span>Advance Delivery Paid:</span>
-                    <span>₹{amountToPayNow.toLocaleString("en-IN")} (Online Paid)</span>
+                    <span>₹{shownPaidNow.toLocaleString("en-IN")} (Online Paid)</span>
                   </div>
                   <div className="flex justify-between text-amber-800 dark:text-amber-300 font-black bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20">
                     <span>Cash Due on Delivery:</span>
-                    <span className="text-sm">₹{amountDueOnDelivery.toLocaleString("en-IN")}</span>
+                    <span className="text-sm">₹{shownDueOnDelivery.toLocaleString("en-IN")}</span>
                   </div>
                 </>
               ) : (
                 <div className="flex justify-between text-emerald-600 font-bold">
                   <span>Total Amount Paid:</span>
-                  <span>₹{amountToPayNow.toLocaleString("en-IN")} (100% Free Delivery)</span>
+                  <span>₹{shownPaidNow.toLocaleString("en-IN")} (100% Free Delivery)</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-foreground">
