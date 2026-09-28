@@ -607,40 +607,42 @@ export function InvoiceModal({ order, onClose, initialView = "invoice" }: Invoic
               // VIEW 2: SHIPPING LABEL (MATCHING REFERENCE TEMPLATE)
               // ==========================================================
               <div className="border-[3px] border-black rounded-2xl overflow-hidden text-slate-700 bg-white">
-                {/* Ship To / From */}
-                <div className="grid grid-cols-[57%_43%] border-b-[3px] border-black">
+                {/* From / Ship To */}
+                <div className="grid grid-cols-2 border-b-[3px] border-black">
                   <div className="p-5 min-h-[200px] border-r-[3px] border-black">
-                    <span className="inline-block bg-black text-white text-lg font-bold px-4 py-1 rounded-lg tracking-wide">
-                      SHIP TO:
+                    <img src={faasbayLogo} alt="FaasBay" className="h-9 w-auto object-contain" />
+                    <div className="mt-3 text-[14px] leading-snug text-black">
+                      <div>Faasbay Trading LLP</div>
+                      <div>37G&amp;H, Treasury Road</div>
+                      <div>Malappuram, Kerala</div>
+                      <div>India</div>
+                      <div>676101</div>
+                      <div>Ph: +91 9746598889</div>
+                    </div>
+                  </div>
+                  <div className="p-5">
+                    <span className="inline-block bg-black text-white text-[11px] font-bold px-2 py-0.5 tracking-wide">
+                      SHIP TO
                     </span>
-                    <div className="mt-3 pl-1 text-[13px] leading-relaxed">
+                    <div className="mt-3 text-[15px] font-bold leading-snug text-black">
                       <div>{safeOrder.shippingAddress?.name || safeOrder.customer?.name || "Customer"}</div>
                       <div className="whitespace-pre-line">{safeOrder.shippingAddress?.street || ""}</div>
-                      <div>
-                        {[safeOrder.shippingAddress?.city, safeOrder.shippingAddress?.state, safeOrder.shippingAddress?.pincode]
-                          .filter(Boolean)
-                          .join(", ")}
-                        {safeOrder.shippingAddress?.country ? `, ${safeOrder.shippingAddress.country}` : ""}
-                      </div>
+                      {safeOrder.shippingAddress?.city && <div>{safeOrder.shippingAddress.city}</div>}
+                      {(safeOrder.shippingAddress?.state || safeOrder.shippingAddress?.country) && (
+                        <div>
+                          {[safeOrder.shippingAddress?.state, safeOrder.shippingAddress?.country].filter(Boolean).join(", ")}
+                        </div>
+                      )}
+                      {safeOrder.shippingAddress?.pincode && <div>{safeOrder.shippingAddress.pincode}</div>}
                       {(safeOrder.shippingAddress?.phone || safeOrder.customer?.phone) && (
                         <div>Ph: {safeOrder.shippingAddress?.phone || safeOrder.customer?.phone}</div>
                       )}
                     </div>
                   </div>
-                  <div className="p-5">
-                    <div className="text-[12px] font-bold">FROM:</div>
-                    <div className="mt-4 pl-1 text-[13px] leading-relaxed">
-                      <div>Faasbay Trading LLP</div>
-                      <div>37G&amp;H, Treasury Road</div>
-                      <div>Malappuram, Kerala</div>
-                      <div>676101</div>
-                      <div>Ph: +91 9746598889</div>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Order details / Remarks */}
-                <div className="grid grid-cols-[57%_43%] border-b-[3px] border-black">
+                <div className="grid grid-cols-2 border-b-[3px] border-black">
                   <div className="border-r-[3px] border-black">
                     {[
                       ["ORDER ID:", safeOrder.orderId || "—"],
