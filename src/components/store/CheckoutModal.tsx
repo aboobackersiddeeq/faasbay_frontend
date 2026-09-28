@@ -399,58 +399,6 @@ export function CheckoutModal() {
         cod: "upi",
       };
       const targetMethod = rzpMethodMap[paymentMethod] || "upi";
-      const methodLabel = isCod
-        ? "Cash on Delivery (Advance Paid)"
-        : (targetMethod === "upi" ? "UPI (Online)" : targetMethod === "card" ? "Card (Online)" : "Razorpay (Online)");
-
-      // Order details the server needs to record the order once payment is confirmed.
-      // totalAmount/discountAmount/shippingFee are display-only — the server
-      // independently re-prices the order from couponCode and real catalog
-      // prices, and verifies the amount actually captured via Razorpay against
-      // that, not against these.
-      const orderPayload = {
-        customer: customerPayload,
-        items: itemsPayload,
-        couponCode: checkoutCouponCode,
-        paymentMethod: methodLabel,
-        totalAmount: total,
-        discountAmount: discount,
-        shippingFee: shippingFee,
-      };
-
-      // Razorpay's popup doesn't always notice a UPI QR payment, leaving it stuck
-      // on the QR screen with its handler never called. So while it's open we
-      // also ask our server (which asks Razorpay) whether this order was paid.
-      let settled = false;
-      let pollTimer: ReturnType<typeof setInterval> | undefined;
-      let rzp: any;
-
-      const stopPolling = () => {
-        if (pollTimer) clearInterval(pollTimer);
-        pollTimer = undefined;
-      };
-
-      const checkPaid = async (): Promise<boolean> => {
-        if (settled) return true;
-        try {
-          const res = await fetch(API_ENDPOINTS.razorpayCheckPayment, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ razorpay_order_id: rzpOrderId, ...orderPayload }),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (settled || data.pending || !res.ok || !data.success || !data.data?.orderId) return false;
-          settled = true;
-          stopPolling();
-          try { rzp?.close(); } catch { /* already closed */ }
-          setIsProcessing(false);
-          setFormError("");
-          finalizeOrder(data.data);
-          return true;
-        } catch {
-          return false;
-        }
-      };
 
       const options: any = {
         key: serverKeyId || RAZORPAY_KEY_ID,
@@ -506,17 +454,16 @@ export function CheckoutModal() {
           color: "#000000",
         },
         modal: {
-          ondismiss: async () => {
-            stopPolling();
-            if (settled) return;
-            // The shopper may have closed a popup that was stuck after they paid.
-            if (!(await checkPaid())) setIsProcessing(false);
+          ondismiss: () => {
+            setIsProcessing(false);
           },
         },
         handler: async (response: any) => {
-          stopPolling();
-          if (settled) return;
           try {
+            const methodLabel = isCod 
+              ? "Cash on Delivery (Advance Paid)" 
+              : (targetMethod === "upi" ? "UPI (Online)" : targetMethod === "card" ? "Card (Online)" : "Razorpay (Online)");
+
             const verifyRes = await fetch(API_ENDPOINTS.razorpayVerify, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -524,11 +471,20 @@ export function CheckoutModal() {
                 razorpay_order_id: response.razorpay_order_id || rzpOrderId,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
-                ...orderPayload,
+                customer: customerPayload,
+                items: itemsPayload,
+                couponCode: checkoutCouponCode,
+                paymentMethod: methodLabel,
+                // totalAmount/discountAmount/shippingFee below are display-only —
+                // the server independently re-prices the order from couponCode
+                // and real catalog prices, and verifies the amount actually
+                // captured via Razorpay against that, not against these.
+                totalAmount: total,
+                discountAmount: discount,
+                shippingFee: shippingFee,
               }),
             });
             const verifyData = await verifyRes.json();
-            if (settled) return;
             setIsProcessing(false);
             if (!verifyRes.ok || !verifyData.success || !verifyData.data?.orderId) {
               setFormError(
@@ -536,10 +492,8 @@ export function CheckoutModal() {
               );
               return;
             }
-            settled = true;
             finalizeOrder(verifyData.data);
           } catch (vErr) {
-            if (settled) return;
             setIsProcessing(false);
             setFormError(
               `Payment received but we could not confirm your order. Please contact support with Payment ID: ${response.razorpay_payment_id}`
@@ -552,14 +506,12 @@ export function CheckoutModal() {
         options.order_id = rzpOrderId;
       }
 
-      rzp = new (window as any).Razorpay(options);
+      const rzp = new (window as any).Razorpay(options);
       rzp.on("payment.failed", (failedRes: any) => {
-        if (settled) return;
         setIsProcessing(false);
         setFormError(failedRes.error?.description || "Payment was cancelled or failed. Please try again.");
       });
       rzp.open();
-      pollTimer = setInterval(() => { void checkPaid(); }, 4000);
     } catch (error: any) {
       setIsProcessing(false);
       setFormError(error.message || "An unexpected error occurred during payment gateway launch.");
