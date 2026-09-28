@@ -279,7 +279,7 @@ function Index() {
   const isFooterVisible = isSectionVisible("sec-footer");
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-0">
+    <div className={`min-h-screen bg-background md:pb-0 ${isFooterVisible ? "" : "pb-20"}`}>
       <Header />
 
       <main className="space-y-4 sm:space-y-6 lg:space-y-8">
