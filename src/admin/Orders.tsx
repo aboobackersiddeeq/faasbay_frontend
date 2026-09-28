@@ -134,12 +134,27 @@ export function getStatusPill(status: OrderStatus) {
 interface InvoiceModalProps {
   order: AdminOrder;
   onClose: () => void;
+  initialView?: "invoice" | "shipping_label";
 }
 
-export function InvoiceModal({ order, onClose }: InvoiceModalProps) {
+export function InvoiceModal({ order, onClose, initialView = "invoice" }: InvoiceModalProps) {
   const safeOrder = sanitizeOrder(order);
-  const [activeView, setActiveView] = useState<"invoice" | "shipping_label">("invoice");
+  const [activeView, setActiveView] = useState<"invoice" | "shipping_label">(initialView);
   const isCOD = isCodOrder(safeOrder);
+
+  // Shipping label fields not stored on the order — editable before printing.
+  const shippedEntry = (safeOrder.timeline || []).find((t) => t.status === "Shipped");
+  const [labelWeight, setLabelWeight] = useState("");
+  const [labelDimensions, setLabelDimensions] = useState("");
+  const [labelShipDate, setLabelShipDate] = useState(() => {
+    // Timeline timestamps are often time-only ("05:13 pm"), which parse as Invalid Date.
+    const parsed = new Date(shippedEntry?.timestamp || "");
+    const date = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  });
+  const codDue = safeOrder.codAmountDue !== undefined ? safeOrder.codAmountDue : safeOrder.totalAmount || 0;
+  const [labelRemarks, setLabelRemarks] = useState(isCOD ? `COD — COLLECT ${formatCurrency(codDue)}` : "");
 
   // Print the exact on-screen document inside an isolated iframe that reuses the
   // app's own compiled stylesheets, and only prints once styles, fonts and images are ready.
@@ -326,7 +341,15 @@ export function InvoiceModal({ order, onClose }: InvoiceModalProps) {
               onClick={handlePrint}
               className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-xs font-bold text-white transition-all flex items-center gap-2 shadow-lg shadow-emerald-900/20 active:scale-98 cursor-pointer"
             >
-              <Printer size={15} /> Print / Save PDF
+              {activeView === "invoice" ? (
+                <>
+                  <Printer size={15} /> Print / Save PDF
+                </>
+              ) : (
+                <>
+                  <Download size={15} /> Download Label
+                </>
+              )}
             </button>
             <button
               onClick={onClose}
@@ -338,11 +361,34 @@ export function InvoiceModal({ order, onClose }: InvoiceModalProps) {
           </div>
         </div>
 
+        {/* Shipping label inputs (not printed) */}
+        {activeView === "shipping_label" && (
+          <div className="no-print grid grid-cols-2 sm:grid-cols-4 gap-3 px-6 py-3 bg-white border-b border-slate-200 text-[11px]">
+            {[
+              { label: "Weight", value: labelWeight, set: setLabelWeight, placeholder: "e.g. 2.5 KG" },
+              { label: "Dimensions", value: labelDimensions, set: setLabelDimensions, placeholder: "e.g. 12cm x 12cm x 12cm" },
+              { label: "Shipping Date", value: labelShipDate, set: setLabelShipDate, placeholder: "YYYY-MM-DD", type: "date" },
+              { label: "Remarks", value: labelRemarks, set: setLabelRemarks, placeholder: "NO REMARKS" },
+            ].map((field) => (
+              <label key={field.label} className="flex flex-col gap-1">
+                <span className="font-semibold text-slate-500">{field.label}</span>
+                <input
+                  type={field.type || "text"}
+                  value={field.value}
+                  onChange={(e) => field.set(e.target.value)}
+                  placeholder={field.placeholder}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                />
+              </label>
+            ))}
+          </div>
+        )}
+
         {/* Document Canvas Area */}
-        <div className="overflow-y-auto p-6 sm:p-10 bg-gradient-to-b from-slate-100/70 to-slate-200/50 backdrop-blur-sm flex justify-center">
+        <div className="flex-1 min-h-0 overflow-y-auto p-6 sm:p-10 items-start bg-gradient-to-b from-slate-100/70 to-slate-200/50 backdrop-blur-sm flex justify-center">
           <div
             id="printable-document"
-            className="w-full max-w-3xl bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-200/80 p-8 sm:p-10 text-slate-900 text-xs font-sans space-y-6 transition-all"
+            className="w-full max-w-3xl shrink-0 h-fit bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-200/80 p-8 sm:p-10 text-slate-900 text-xs font-sans space-y-6 transition-all"
           >
             {activeView === "invoice" ? (
               // ==========================================================
@@ -558,130 +604,71 @@ export function InvoiceModal({ order, onClose }: InvoiceModalProps) {
               </>
             ) : (
               // ==========================================================
-              // VIEW 2: AUTOMATIC 4"x6" SHIPPING LABEL (COD vs PREPAID)
+              // VIEW 2: SHIPPING LABEL (MATCHING REFERENCE TEMPLATE)
               // ==========================================================
-              <div className="space-y-4">
-                {/* Shipping Label Top Header */}
-                <div className="flex items-center justify-between pb-3 border-b-2 border-slate-900">
-                  <img
-                    src={faasbayLogo}
-                    alt="FaasBay"
-                    className="h-8 w-auto object-contain"
-                  />
-                  <div className="text-right">
-                    <span className="text-xs font-black uppercase text-slate-900 block">
-                      {safeOrder.courier || "DTDC EXPRESS"}
+              <div className="border-[3px] border-black rounded-2xl overflow-hidden text-slate-700 bg-white">
+                {/* Ship To / From */}
+                <div className="grid grid-cols-[57%_43%] border-b-[3px] border-black">
+                  <div className="p-5 min-h-[200px] border-r-[3px] border-black">
+                    <span className="inline-block bg-black text-white text-lg font-bold px-4 py-1 rounded-lg tracking-wide">
+                      SHIP TO:
                     </span>
-                    <span className="text-[10px] font-mono text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded font-bold">
-                      STANDARD AIR CARGO
-                    </span>
+                    <div className="mt-3 pl-1 text-[13px] leading-relaxed">
+                      <div>{safeOrder.shippingAddress?.name || safeOrder.customer?.name || "Customer"}</div>
+                      <div className="whitespace-pre-line">{safeOrder.shippingAddress?.street || ""}</div>
+                      <div>
+                        {[safeOrder.shippingAddress?.city, safeOrder.shippingAddress?.state, safeOrder.shippingAddress?.pincode]
+                          .filter(Boolean)
+                          .join(", ")}
+                        {safeOrder.shippingAddress?.country ? `, ${safeOrder.shippingAddress.country}` : ""}
+                      </div>
+                      {(safeOrder.shippingAddress?.phone || safeOrder.customer?.phone) && (
+                        <div>Ph: {safeOrder.shippingAddress?.phone || safeOrder.customer?.phone}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="p-5">
+                    <div className="text-[12px] font-bold">FROM:</div>
+                    <div className="mt-4 pl-1 text-[13px] leading-relaxed">
+                      <div>Faasbay Trading LLP</div>
+                      <div>37G&amp;H, Treasury Road</div>
+                      <div>Malappuram, Kerala</div>
+                      <div>676101</div>
+                      <div>Ph: +91 9746598889</div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Big Dynamic COD vs PREPAID Banner */}
-                {isCOD ? (
-                  <div className="p-3 bg-amber-500 text-white rounded-xl border-2 border-amber-600 text-center space-y-0.5 shadow-sm">
-                    <div className="text-[11px] font-extrabold uppercase tracking-widest text-amber-100">
-                      ★ CASH ON DELIVERY (COD) ★
-                    </div>
-                    <div className="text-xl font-black tracking-tight">
-                      COLLECT CASH: {formatCurrency(safeOrder.codAmountDue !== undefined ? safeOrder.codAmountDue : (safeOrder.totalAmount || 0))}
-                    </div>
-                    <div className="text-[10px] font-bold text-amber-100">
-                      {safeOrder.advancePaid 
-                        ? `Advance shipping paid online: ${formatCurrency(safeOrder.advancePaid)} • Collect balance from customer` 
-                        : "Delivery Associate: Please collect cash before handing over parcel"}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-3 bg-[#10b981] text-white rounded-xl border-2 border-emerald-600 text-center space-y-0.5 shadow-sm">
-                    <div className="text-[11px] font-extrabold uppercase tracking-widest text-emerald-100">
-                      ✓ PREPAID SHIPMENT
-                    </div>
-                    <div className="text-xl font-black tracking-tight">
-                      DO NOT COLLECT CASH (₹0.00 DUE)
-                    </div>
-                    <div className="text-[10px] font-bold text-emerald-100">
-                      Payment Captured & Verified Online (100% Free Delivery)
-                    </div>
-                  </div>
-                )}
-
-                {/* Scannable Barcode & Tracking AWB */}
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-300 text-center space-y-1">
-                  <div className="font-mono text-sm font-black tracking-widest text-slate-900">
-                    {safeOrder.trackingNumber || `AWB-${safeOrder.orderId || "FB"}-EXP`}
-                  </div>
-                  {/* Barcode Lines */}
-                  <div className="h-9 w-full flex items-center justify-center gap-0.5 px-2 overflow-hidden">
+                {/* Order details / Remarks */}
+                <div className="grid grid-cols-[57%_43%] border-b-[3px] border-black">
+                  <div className="border-r-[3px] border-black">
                     {[
-                      2, 4, 1, 3, 2, 5, 1, 4, 2, 3, 1, 5, 2, 4, 1, 3, 2, 5, 1, 4,
-                      2, 3, 1, 5, 2, 4, 1, 3, 2, 4, 1, 3, 2, 5, 1, 4, 2, 3, 1, 5,
-                      2, 4, 1, 3, 2, 5, 1, 4, 2, 3, 1, 5, 2, 4, 1, 3, 2, 4, 1, 3,
-                    ].map((w, bi) => (
+                      ["ORDER ID:", safeOrder.orderId || "—"],
+                      ["WEIGHT:", labelWeight],
+                      ["DIMENSIONS:", labelDimensions],
+                      ["SHIPPING DATE:", labelShipDate],
+                    ].map(([label, value], idx, rows) => (
                       <div
-                        key={bi}
-                        className="bg-slate-900 h-full"
-                        style={{ width: `${w}px` }}
-                      />
+                        key={label}
+                        className={`grid grid-cols-[42%_58%] items-center px-4 py-2.5 text-[12px] ${
+                          idx < rows.length - 1 ? "border-b-2 border-black" : ""
+                        }`}
+                      >
+                        <span className="font-bold">{label}</span>
+                        <span className="break-all">{value || "\u00A0"}</span>
+                      </div>
                     ))}
                   </div>
-                  <div className="text-[10px] font-mono text-slate-500">
-                    Order Ref: #{safeOrder.orderId || "FB-ORDER"} • Routing: MLP/HUB-01 • Date: {formattedDate}
-                  </div>
-                </div>
-
-                {/* DELIVER TO (CUSTOMER / CONSIGNEE) */}
-                <div className="p-4 rounded-xl border-2 border-slate-900 space-y-1 bg-white">
-                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                    DELIVER TO (CONSIGNEE):
-                  </div>
-                  <div className="text-sm font-black text-slate-900">{safeOrder.shippingAddress?.name || safeOrder.customer?.name || "Customer"}</div>
-                  <div className="text-xs text-slate-800 leading-relaxed font-medium">
-                    {safeOrder.shippingAddress?.street || ""}<br />
-                    {safeOrder.shippingAddress?.city || "India"}, {safeOrder.shippingAddress?.state || "India"}<br />
-                    <span className="text-sm font-black text-slate-900">
-                      PIN CODE: {safeOrder.shippingAddress?.pincode || ""}
-                    </span>
-                  </div>
-                  <div className="text-xs font-bold text-slate-900 pt-1">
-                    Phone: {safeOrder.customer?.phone || safeOrder.shippingAddress?.phone || "No phone"}
-                  </div>
-                </div>
-
-                {/* SHIP FROM (RETURN ADDRESS) & DETAILS */}
-                <div className="grid grid-cols-2 gap-3 text-[11px]">
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <div className="text-[9px] font-bold uppercase text-slate-400">
-                      SHIP FROM / RETURN IF UNDELIVERED TO:
-                    </div>
-                    <div className="font-bold text-slate-900 mt-0.5">Faasbay Trading LLP</div>
-                    <div className="text-[10px] text-slate-700 leading-tight mt-0.5 font-medium">
-                      37G&H, Treasury Road<br />
-                      Malappuram, Kerala — 676101<br />
-                      Ph: +91 9746598889
-                    </div>
-                  </div>
-
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col justify-between">
-                    <div>
-                      <div className="text-[9px] font-bold uppercase text-slate-400">Parcel Contents</div>
-                      <div className="font-bold text-slate-900 truncate">
-                        {(safeOrder.items || [])[0]?.title || "Artisan Products"}
-                      </div>
-                    </div>
-                    <div className="text-[10px] text-slate-500 flex justify-between pt-1 border-t border-slate-200">
-                      <span>Total Qty: <strong>{(safeOrder.items || []).length}</strong></span>
-                      <span>Weight: <strong>0.45 kg</strong></span>
+                  <div className="p-4">
+                    <div className="text-[12px] font-bold">REMARKS:</div>
+                    <div className="mt-2 pl-1 text-[12px] uppercase whitespace-pre-line">
+                      {labelRemarks.trim() || "NO REMARKS"}
                     </div>
                   </div>
                 </div>
 
-                {/* Footer Declaration */}
-                <div className="border-t border-dashed border-slate-300 pt-2 text-[9px] text-slate-500 flex justify-between items-center">
-                  <span>Authorized E-Commerce Shipping Label</span>
-                  <span className="font-mono text-slate-400">Faasbay Trading LLP • Malappuram</span>
-                </div>
+                {/* Blank space for the courier's barcode sticker */}
+                <div className="h-36" />
               </div>
             )}
           </div>
@@ -701,6 +688,7 @@ export function OrdersList() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
   const [invoiceOrder, setInvoiceOrder] = useState<AdminOrder | null>(null);
+  const [invoiceView, setInvoiceView] = useState<"invoice" | "shipping_label">("invoice");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [copiedPhone, setCopiedPhone] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
@@ -1048,7 +1036,21 @@ export function OrdersList() {
                       >
                         <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => setInvoiceOrder(sanitizeOrder(order))}
+                            onClick={() => {
+                              setInvoiceView("shipping_label");
+                              setInvoiceOrder(sanitizeOrder(order));
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-slate-100/90 hover:bg-emerald-50 hover:text-[#10b981] hover:border-emerald-200 border border-slate-200/80 text-slate-700 text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95"
+                            title="Download Shipping Label"
+                          >
+                            <Truck size={13} />
+                            <span>Label</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setInvoiceView("invoice");
+                              setInvoiceOrder(sanitizeOrder(order));
+                            }}
                             className="px-3 py-1.5 rounded-xl bg-slate-100/90 hover:bg-emerald-50 hover:text-[#10b981] hover:border-emerald-200 border border-slate-200/80 text-slate-700 text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95"
                             title="Generate Invoice / Shipping Label"
                           >
@@ -1104,7 +1106,7 @@ export function OrdersList() {
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setInvoiceOrder(sanitizeOrder(selectedOrder))}
+                  onClick={() => { setInvoiceView("invoice"); setInvoiceOrder(sanitizeOrder(selectedOrder)); }}
                   className="px-3.5 py-2 rounded-xl bg-[#10b981] hover:bg-[#059669] text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
                 >
                   <FileText size={13} /> Invoice & Label
@@ -1246,7 +1248,7 @@ export function OrdersList() {
               </div>
 
               {/* Logistics & Tracking */}
-              <div className="p-4.5 rounded-2xl bg-slate-50/80 backdrop-blur-sm border border-slate-200/80 space-y-3 shadow-2xs">
+              {/* <div className="p-4.5 rounded-2xl bg-slate-50/80 backdrop-blur-sm border border-slate-200/80 space-y-3 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-slate-900 flex items-center gap-1.5">
                     <Truck size={13} className="text-[#10b981]" /> Logistics & Carrier
@@ -1272,7 +1274,7 @@ export function OrdersList() {
                     Track <ExternalLink size={11} />
                   </a>
                 </div>
-              </div>
+              </div> */}
 
               {/* Timeline */}
               <div className="p-4.5 rounded-2xl bg-white/90 backdrop-blur-sm border border-slate-200/80 space-y-3 shadow-2xs">
@@ -1300,6 +1302,7 @@ export function OrdersList() {
       {invoiceOrder && (
         <InvoiceModal
           order={invoiceOrder}
+          initialView={invoiceView}
           onClose={() => setInvoiceOrder(null)}
         />
       )}
