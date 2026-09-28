@@ -140,8 +140,6 @@ export const defaultHomepageSections: HomepageSectionConfig[] = [
 export const defaultFooterData: StorefrontFooterConfig = {
   description: "FaasBay — Precision hardware for modern creators. Direct-to-consumer studio acoustics, mechanical keyboards, titanium wearables, and fast chargers.",
   columns: [
-    { id: "c1", title: "Shop & Discover", links: [{ label: "Audio & Acoustics", url: "/#catalog-section" }, { label: "Studio Keyboards", url: "/#catalog-section" }, { label: "Smart Wearables", url: "/#catalog-section" }, { label: "Fast Chargers", url: "/#catalog-section" }, { label: "Desk Tech", url: "/#catalog-section" }] },
-    { id: "c2", title: "Our Story", links: [{ label: "About FaasBay", url: "/about" }, { label: "Design Philosophy", url: "/about" }, { label: "Direct Fulfillment", url: "/about" }, { label: "Quality Assurance", url: "/about" }, { label: "Careers", url: "/about" }] },
     { id: "c3", title: "Client Support", links: [{ label: "Track Your Order", url: "/admin/orders" }, { label: "Shipping & Delivery", url: "/shipping-policy" }, { label: "7-Day Returns", url: "/refund-policy" }, { label: "Warranty Claim", url: "/terms-of-service" }, { label: "Contact Support", url: "/contact" }] },
     { id: "c4", title: "Legal & Privacy", links: [{ label: "Terms of Service", url: "/terms-of-service" }, { label: "Privacy Policy", url: "/privacy-policy" }, { label: "Refund Policy", url: "/refund-policy" }, { label: "Shipping Policy", url: "/shipping-policy" }] },
   ],

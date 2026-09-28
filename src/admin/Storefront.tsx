@@ -1894,6 +1894,9 @@ export const PagesCMSPage = PagesPage;
 
 // ── Footer CMS ──────────────────────────────────────────────────────────────
 
+// Brand block spans 2 of the storefront footer's 4 grid slots
+const MAX_FOOTER_COLUMNS = 2;
+
 export function FooterCMSPage() {
   const { footerData, updateFooterData } = useStorefrontCms();
   const [footer, setFooter] = useState<StorefrontFooterConfig>(footerData);
@@ -1908,6 +1911,9 @@ export function FooterCMSPage() {
     setToast(true);
     setTimeout(() => setToast(false), 2500);
   };
+
+  const updateColumn = (ci: number, col: StorefrontFooterConfig["columns"][number]) =>
+    setFooter({ ...footer, columns: footer.columns.map((c, i) => (i === ci ? col : c)) });
 
   return (
     <div>
@@ -1935,17 +1941,36 @@ export function FooterCMSPage() {
         <FormField label="Copyright"><Input value={footer.copyright} onChange={e => setFooter({ ...footer, copyright: e.target.value })} /></FormField>
       </Card>
       <Card className="p-4 mb-4">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Footer Columns</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Footer Columns</h3>
+          <Btn
+            variant="secondary"
+            disabled={footer.columns.length >= MAX_FOOTER_COLUMNS}
+            onClick={() => setFooter({ ...footer, columns: [...footer.columns, { id: `c-${Date.now()}`, title: "New Column", links: [] }] })}
+          >
+            + Add Column
+          </Btn>
+        </div>
+        <p className="text-xs text-gray-500 mb-3">
+          The logo and store description fill the left half of the footer; up to {MAX_FOOTER_COLUMNS} link columns sit beside it.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {footer.columns.map((col, ci) => (
             <div key={col.id} className="border border-gray-200 dark:border-white/10 rounded-md p-3">
-              <FormField label="Column Title"><Input value={col.title} onChange={e => { const cols = [...footer.columns]; cols[ci] = { ...col, title: e.target.value }; setFooter({ ...footer, columns: cols }); }} /></FormField>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <FormField label="Column Title"><Input value={col.title} onChange={e => updateColumn(ci, { ...col, title: e.target.value })} /></FormField>
+                </div>
+                <Btn variant="danger" className="mb-3" onClick={() => setFooter({ ...footer, columns: footer.columns.filter((_, i) => i !== ci) })}>Remove</Btn>
+              </div>
               {col.links.map((link, li) => (
                 <div key={li} className="flex gap-2 mb-1">
-                  <Input value={link.label} placeholder="Label" onChange={e => { const cols = [...footer.columns]; cols[ci].links[li] = { ...link, label: e.target.value }; setFooter({ ...footer, columns: cols }); }} className="text-xs" />
-                  <Input value={link.url} placeholder="URL" onChange={e => { const cols = [...footer.columns]; cols[ci].links[li] = { ...link, url: e.target.value }; setFooter({ ...footer, columns: cols }); }} className="text-xs" />
+                  <Input value={link.label} placeholder="Label" onChange={e => updateColumn(ci, { ...col, links: col.links.map((l, i) => i === li ? { ...l, label: e.target.value } : l) })} className="text-xs" />
+                  <Input value={link.url} placeholder="URL" onChange={e => updateColumn(ci, { ...col, links: col.links.map((l, i) => i === li ? { ...l, url: e.target.value } : l) })} className="text-xs" />
+                  <Btn variant="ghost" aria-label="Remove link" onClick={() => updateColumn(ci, { ...col, links: col.links.filter((_, i) => i !== li) })}>✕</Btn>
                 </div>
               ))}
+              <Btn variant="ghost" className="mt-1" onClick={() => updateColumn(ci, { ...col, links: [...col.links, { label: "", url: "" }] })}>+ Add Link</Btn>
             </div>
           ))}
         </div>

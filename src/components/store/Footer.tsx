@@ -8,9 +8,9 @@ export function Footer() {
   return (
     <footer className="mt-8 sm:mt-12 border-t border-border bg-surface text-foreground pb-20 sm:pb-10">
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 pt-8 sm:pt-10">
-        {/* Top Newsletter & Brand Statement */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 pb-8 sm:pb-10 border-b border-border">
-          <div className="lg:col-span-5 space-y-3">
+        {/* Brand Statement + DESKTOP Navigation Columns */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-8 pb-4 md:py-8">
+          <div className="md:col-span-2 space-y-3 min-w-0">
             <a href="/" className="inline-block">
               <img src={faasbayLogo} alt="FaasBay" className="h-8 w-auto object-contain" />
             </a>
@@ -19,6 +19,30 @@ export function Footer() {
                 "Direct-to-consumer precision gadgets, studio acoustics, and smart lifestyle tech. Designed with care, warehoused directly, and backed by our 1-year guarantee."}
             </p>
           </div>
+
+          {(footerData?.columns || []).map((col) => (
+            <div key={col.id || col.title} className="hidden md:block min-w-0">
+              <h4 className="font-display text-xs font-bold uppercase tracking-wider text-foreground">
+                {col.title}
+              </h4>
+              <ul className="mt-3 space-y-2">
+                {col.links.map((l, li) => {
+                  const label = typeof l === "string" ? l : l.label;
+                  const url = typeof l === "string" ? "#" : l.url;
+                  return (
+                    <li key={li}>
+                      <a
+                        href={url}
+                        className="text-xs text-muted-foreground transition-colors hover:text-foreground font-medium"
+                      >
+                        {label}
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
 
           {/* <div className="lg:col-span-7 flex flex-col justify-center">
             <div className="rounded-2xl bg-secondary/50 p-4 sm:p-5 border border-border">
@@ -45,34 +69,7 @@ export function Footer() {
           </div> */}
         </div>
 
-        {/* 1. DESKTOP Navigation Columns (100% Intact & Untouched) */}
-        <div className="hidden md:grid py-6 sm:py-8 grid-cols-4 gap-8">
-          {(footerData?.columns || []).map((col) => (
-            <div key={col.id || col.title} className="min-w-0">
-              <h4 className="font-display text-xs font-bold uppercase tracking-wider text-foreground">
-                {col.title}
-              </h4>
-              <ul className="mt-3 space-y-2">
-                {col.links.map((l, li) => {
-                  const label = typeof l === "string" ? l : l.label;
-                  const url = typeof l === "string" ? "#" : l.url;
-                  return (
-                    <li key={li}>
-                      <a
-                        href={url}
-                        className="text-xs text-muted-foreground transition-colors hover:text-foreground font-medium"
-                      >
-                        {label}
-                      </a>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </div>
-
-        {/* 2. MOBILE Compact Navigation Accordions */}
+        {/* MOBILE Compact Navigation Accordions */}
         <div className="block md:hidden py-4 divide-y divide-border">
           {(footerData?.columns || []).map((col, idx) => (
             <details key={col.id || col.title || idx} className="group py-2.5">
