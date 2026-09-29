@@ -105,3 +105,34 @@ export async function deleteMyAddress(
   });
   return Array.isArray(data) ? data : [];
 }
+
+// --- Accounts ---------------------------------------------------------------
+
+export interface CustomerAccount {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  pincode: string;
+  state: string;
+}
+
+/** Creates a shopper account. Email and phone must each be unused by another account. */
+export function registerCustomer(input: {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+}): Promise<CustomerAccount> {
+  return apiRequest<CustomerAccount>(API_ENDPOINTS.customerRegister, { method: "POST", body: input });
+}
+
+/** Signs a shopper in with their email or mobile number. */
+export function loginCustomer(identifier: string, password: string): Promise<CustomerAccount> {
+  return apiRequest<CustomerAccount>(API_ENDPOINTS.customerLogin, {
+    method: "POST",
+    body: { identifier, password },
+  });
+}

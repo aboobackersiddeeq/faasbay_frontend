@@ -8,7 +8,8 @@ import type { AdminCustomer, AdminSegment, AdminReview, AdminTicket } from "./sh
 import { API_ENDPOINTS } from "@/config/api";
 import { api } from "@/lib/api-client";
 import { toast } from "sonner";
-import { useStoreProducts } from "@/components/store/data";
+import { useAdminProducts, reviewStatusOf, formatReviewDate } from "@/components/store/data";
+import { updateProductReview, deleteProductReview } from "./shared/product-store";
 
 // ── Customers ───────────────────────────────────────────────────────────────
 
@@ -215,30 +216,53 @@ function collectReviews(products: any[]): AdminReview[] {
         title: r.comment ? r.comment.slice(0, 30) : "Customer Review",
         comment: r.comment || "",
         date: r.date || "Recent",
-        status: "Approved",
+        status: reviewStatusOf(r),
         verified: r.verified ?? true,
         featured: false,
       } as AdminReview);
     });
   });
-  return rows;
+  // Newest submissions awaiting moderation first.
+  return rows.sort((a, b) => Number(b.status === "Pending") - Number(a.status === "Pending"));
 }
 
 export function ReviewsPage() {
-  // Product reviews live on the product documents in MongoDB.
-  const storeProducts = useStoreProducts();
+  // Product reviews live on the product documents in MongoDB. The admin catalog
+  // includes Pending/Rejected reviews, which the storefront never receives.
+  const { value: adminProducts } = useAdminProducts();
   const [reviews, setReviews] = useState<AdminReview[]>(initReviews);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   React.useEffect(() => {
-    setReviews(collectReviews(storeProducts));
-  }, [storeProducts]);
+    setReviews(collectReviews(adminProducts));
+  }, [adminProducts]);
 
   const [tab, setTab] = useState("all");
 
   const filtered = tab === "all" ? reviews : reviews.filter(r => r.status === tab);
 
-  const updateStatus = (id: string, status: string) => {
-    setReviews(reviews.map(r => r.id === id ? { ...r, status: status as any } : r));
+  const updateStatus = async (review: AdminReview, status: "Approved" | "Rejected") => {
+    setBusyId(review.id);
+    try {
+      await updateProductReview(review.productId, review.id, { status });
+      toast.success(status === "Approved" ? "Review approved — now visible on the storefront." : "Review rejected — hidden from shoppers.");
+    } catch (e: any) {
+      toast.error(e?.message || "Could not update the review.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const removeReview = async (review: AdminReview) => {
+    setBusyId(review.id);
+    try {
+      await deleteProductReview(review.productId, review.id);
+      toast.success("Review deleted.");
+    } catch (e: any) {
+      toast.error(e?.message || "Could not delete the review.");
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const columns = [
@@ -247,18 +271,19 @@ export function ReviewsPage() {
     { key: "customerName", label: "Customer", render: (r: AdminReview) => (<div><div className="text-xs text-gray-900">{r.customerName}</div>{r.verified && <span className="text-[10px] text-emerald-600">✓ Verified</span>}</div>) },
     { key: "comment", label: "Review", width: "30%", render: (r: AdminReview) => (<div><div className="text-xs font-medium text-gray-900">{r.title}</div><div className="text-[11px] text-gray-500 truncate max-w-[220px]">{r.comment}</div></div>) },
     { key: "status", label: "Status", render: (r: AdminReview) => <StatusBadge status={r.status} size="xs" /> },
-    { key: "date", label: "Date", render: (r: AdminReview) => <span className="text-xs text-gray-500">{r.date}</span> },
+    { key: "date", label: "Date", render: (r: AdminReview) => <span className="text-xs text-gray-500">{formatReviewDate(r.date)}</span> },
   ];
 
   return (
     <div>
       <PageHeader title="Reviews" subtitle={`${reviews.length} product reviews`} breadcrumbs={[{ label: "Customers" }, { label: "Reviews" }]} />
-      <TabSwitcher tabs={[{ key: "all", label: "All", count: reviews.length }, { key: "Pending", label: "Pending", count: reviews.filter(r => r.status === "Pending").length }, { key: "Approved", label: "Approved", count: reviews.filter(r => r.status === "Approved").length }]} active={tab} onChange={setTab} />
+      <TabSwitcher tabs={[{ key: "all", label: "All", count: reviews.length }, { key: "Pending", label: "Pending", count: reviews.filter(r => r.status === "Pending").length }, { key: "Approved", label: "Approved", count: reviews.filter(r => r.status === "Approved").length }, { key: "Rejected", label: "Rejected", count: reviews.filter(r => r.status === "Rejected").length }]} active={tab} onChange={setTab} />
       <DataTable columns={columns} data={filtered} keyField="id" searchPlaceholder="Search reviews..."
         actions={(r: AdminReview) => (
-          <div className="flex items-center gap-1">
-            {r.status !== "Approved" && <button onClick={() => updateStatus(r.id, "Approved")} className="px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 bg-emerald-50 rounded hover:bg-emerald-100">Approve</button>}
-            {r.status !== "Rejected" && <button onClick={() => updateStatus(r.id, "Rejected")} className="px-1.5 py-0.5 text-[10px] font-medium text-red-600 bg-red-50 rounded hover:bg-red-100">Reject</button>}
+          <div className={`flex items-center gap-1 ${busyId === r.id ? "opacity-50 pointer-events-none" : ""}`}>
+            {r.status !== "Approved" && <button onClick={() => void updateStatus(r, "Approved")} className="px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 bg-emerald-50 rounded hover:bg-emerald-100">Approve</button>}
+            {r.status !== "Rejected" && <button onClick={() => void updateStatus(r, "Rejected")} className="px-1.5 py-0.5 text-[10px] font-medium text-red-600 bg-red-50 rounded hover:bg-red-100">Reject</button>}
+            <button onClick={() => void removeReview(r)} title="Delete review" className="p-1 text-gray-400 rounded hover:text-red-600 hover:bg-red-50"><Trash2 size={11} /></button>
           </div>
         )}
       />

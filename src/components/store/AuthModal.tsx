@@ -17,98 +17,102 @@ import { useCart } from "@/hooks/use-cart";
 import faasbayLogo from "@/assets/faasbay-logo.png";
 import { MyOrdersView } from "./MyOrdersView";
 import { MyAddressesView } from "./MyAddressesView";
+import { loginCustomer, registerCustomer } from "@/lib/customer-account";
+
+type FieldErrors = Partial<Record<"name" | "email" | "phone" | "password" | "identifier", string>>;
+
+const inputClass =
+  "w-full min-h-[44px] rounded-xl border bg-card pl-10 pr-3.5 py-2 text-xs text-foreground outline-none focus:border-[#B0CB1F] focus:ring-1 focus:ring-[#B0CB1F]";
 
 export function AuthModal() {
-  const { isAuthOpen, closeAuthModal, userProfile, loginUser, logoutUser } = useCart();
+  const {
+    isAuthOpen,
+    closeAuthModal,
+    userProfile,
+    loginUser,
+    logoutUser,
+    accountView: view,
+    setAccountView: setView,
+  } = useCart();
   const [tab, setTab] = useState<"login" | "signup">("login");
-  const [authMethod, setAuthMethod] = useState<"phone" | "email">("phone");
-  const [step, setStep] = useState<"input" | "otp">("input");
-  const [view, setView] = useState<"menu" | "orders" | "addresses">("menu");
 
   // Form states
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [otp, setOtp] = useState(["", "", "", ""]);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isLoading, setIsLoading] = useState(false);
 
   if (!isAuthOpen) return null;
 
-  const handleOtpChange = (index: number, val: string) => {
-    if (val.length > 1) val = val[0] || "";
-    const nextOtp = [...otp];
-    nextOtp[index] = val;
-    setOtp(nextOtp);
-
-    // Auto-focus next input
-    if (val && index < 3) {
-      const nextInput = document.getElementById(`otp-${index + 1}`) as HTMLInputElement | null;
-      if (nextInput) nextInput.focus();
-    }
+  const switchTab = (next: "login" | "signup") => {
+    setTab(next);
+    setError("");
+    setFieldErrors({});
   };
 
-  const handleSendOtpOrLogin = (e: React.FormEvent) => {
+  const validate = (): FieldErrors => {
+    const errors: FieldErrors = {};
+    if (tab === "signup") {
+      if (name.trim().length < 2) errors.name = "Please enter your full name";
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errors.email = "Please enter a valid email address";
+      if (phone.replace(/\D/g, "").length !== 10) errors.phone = "Please enter a valid 10-digit mobile number";
+    } else if (!identifier.trim()) {
+      errors.identifier = "Please enter your email or mobile number";
+    }
+    if (password.length < 6) errors.password = "Password must be at least 6 characters";
+    return errors;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    const errors = validate();
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) return;
 
-    if (authMethod === "phone") {
-      const cleanPhone = phone.replace(/[^0-9]/g, "");
-      if (cleanPhone.length < 10) {
-        setError("Please enter a valid 10-digit mobile number");
-        return;
-      }
-      setIsLoading(true);
-      setTimeout(() => {
-        setIsLoading(false);
+    setIsLoading(true);
+    try {
+      const account =
+        tab === "signup"
+          ? await registerCustomer({
+              name: name.trim(),
+              email: email.trim(),
+              phone: phone.replace(/\D/g, ""),
+              password,
+            })
+          : await loginCustomer(identifier.trim(), password);
 
-        // Details entered here are all we have. A returning shopper's saved profile
-        // is restored separately from their own device by the cart provider — we
-        // deliberately do not look a stranger's address up by phone number.
-        const savedName = name.trim();
-        const savedEmail = email.trim();
-        const savedAddress = "";
-        const savedCity = "";
-        const savedPincode = "";
-        const savedState = "";
-
-        loginUser({
-          name: savedName || `Customer ${cleanPhone.slice(-4)}`,
-          phone: cleanPhone.length === 10 ? cleanPhone : cleanPhone.slice(-10),
-          email: savedEmail || `${cleanPhone}@faasbay.customer`,
-          address: savedAddress,
-          city: savedCity,
-          pincode: savedPincode,
-          state: savedState,
-        });
-        closeAuthModal();
-      }, 500);
-    } else {
-      // Email login
-      if (!email.includes("@")) {
-        setError("Please enter a valid email address");
-        return;
-      }
-      if (!password || password.length < 6) {
-        setError("Password must be at least 6 characters");
-        return;
-      }
-      setIsLoading(true);
-      setTimeout(() => {
-        setIsLoading(false);
-        loginUser({
-          name: name.trim() || email.split("@")[0] || "Valued Customer",
-          phone: phone.trim() || "",
-          email: email.trim(),
-          address: "",
-          city: "",
-          pincode: "",
-        });
-        closeAuthModal();
-      }, 500);
+      loginUser({
+        name: account.name,
+        email: account.email,
+        phone: account.phone,
+        address: account.address,
+        city: account.city,
+        pincode: account.pincode,
+        state: account.state,
+      });
+      setPassword("");
+      closeAuthModal();
+    } catch (err) {
+      // A duplicate email/phone is reported under the field it clashes with.
+      const message = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+      if (tab === "signup" && /email/i.test(message)) setFieldErrors({ email: message });
+      else if (tab === "signup" && /mobile/i.test(message)) setFieldErrors({ phone: message });
+      else setError(message);
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  const fieldError = (key: keyof FieldErrors) =>
+    fieldErrors[key] ? (
+      <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">{fieldErrors[key]}</p>
+    ) : null;
+  const borderFor = (key: keyof FieldErrors) => (fieldErrors[key] ? "border-rose-400" : "border-border");
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
@@ -216,48 +220,12 @@ export function AuthModal() {
           <div className="p-6 space-y-4">
             <div className="space-y-1 text-center">
               <h3 className="font-display text-xl font-black text-foreground">
-                {step === "otp" ? "Verify Mobile Number" : tab === "login" ? "Welcome Back to FaasBay" : "Create FaasBay Account"}
+                {tab === "login" ? "Welcome Back to FaasBay" : "Create FaasBay Account"}
               </h3>
               <p className="text-xs text-neutral-500">
-                {step === "otp"
-                  ? `Enter the 4-digit code sent to ${phone}`
-                  : "Log in to track orders, manage addresses, and checkout faster."}
+                Log in to track orders, manage addresses, and checkout faster.
               </p>
             </div>
-
-            {/* Method switch tabs */}
-            {step === "input" && (
-              <div className="flex rounded-xl bg-secondary/80 p-1 text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMethod("phone");
-                    setError("");
-                  }}
-                  className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
-                    authMethod === "phone"
-                      ? "bg-surface text-foreground shadow-xs"
-                      : "text-neutral-500 hover:text-foreground"
-                  }`}
-                >
-                  Mobile Number
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMethod("email");
-                    setError("");
-                  }}
-                  className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
-                    authMethod === "email"
-                      ? "bg-surface text-foreground shadow-xs"
-                      : "text-neutral-500 hover:text-foreground"
-                  }`}
-                >
-                  Email & Password
-                </button>
-              </div>
-            )}
 
             {error && (
               <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/40 text-xs font-semibold text-rose-600 dark:text-rose-400">
@@ -265,175 +233,155 @@ export function AuthModal() {
               </div>
             )}
 
-            <form onSubmit={handleSendOtpOrLogin} className="space-y-3">
-              {step === "input" ? (
+            <form onSubmit={handleSubmit} noValidate className="space-y-3">
+              {tab === "signup" ? (
                 <>
-                  {tab === "signup" && (
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-neutral-600 dark:text-neutral-400">Full Name</label>
-                      <div className="relative">
-                        <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                        <input
-                          type="text"
-                          required
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          placeholder="Your Name"
-                          className="w-full min-h-[44px] rounded-xl border border-border bg-card pl-10 pr-3.5 py-2 text-xs text-foreground outline-none focus:border-[#B0CB1F] focus:ring-1 focus:ring-[#B0CB1F]"
-                        />
-                      </div>
+                  <div className="space-y-1">
+                    <label htmlFor="auth-name" className="text-[11px] font-bold text-neutral-600 dark:text-neutral-400">
+                      Full Name
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                      <input
+                        id="auth-name"
+                        type="text"
+                        autoComplete="name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Your Name"
+                        className={`${inputClass} ${borderFor("name")}`}
+                      />
                     </div>
-                  )}
+                    {fieldError("name")}
+                  </div>
 
-                  {authMethod === "phone" ? (
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-neutral-600 dark:text-neutral-400">Mobile Number</label>
-                      <div className="flex items-center rounded-xl border border-border bg-card focus-within:border-[#B0CB1F] focus-within:ring-1 focus-within:ring-[#B0CB1F] overflow-hidden">
-                        <span className="px-3.5 py-2.5 text-xs font-bold text-neutral-500 border-r border-border bg-secondary/40">
-                          +91
-                        </span>
-                        <input
-                          type="tel"
-                          required
-                          maxLength={10}
-                          value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
-                          placeholder="98765 43210"
-                          className="w-full min-h-[44px] bg-transparent px-3 py-2 text-xs text-foreground outline-none font-medium"
-                        />
-                      </div>
+                  <div className="space-y-1">
+                    <label htmlFor="auth-email" className="text-[11px] font-bold text-neutral-600 dark:text-neutral-400">
+                      Email Address
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                      <input
+                        id="auth-email"
+                        type="email"
+                        autoComplete="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className={`${inputClass} ${borderFor("email")}`}
+                      />
                     </div>
-                  ) : (
-                    <>
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-neutral-600 dark:text-neutral-400">Email Address</label>
-                        <div className="relative">
-                          <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                          <input
-                            type="email"
-                            required
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="you@example.com"
-                            className="w-full min-h-[44px] rounded-xl border border-border bg-card pl-10 pr-3.5 py-2 text-xs text-foreground outline-none focus:border-[#B0CB1F] focus:ring-1 focus:ring-[#B0CB1F]"
-                          />
-                        </div>
-                      </div>
+                    {fieldError("email")}
+                  </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-neutral-600 dark:text-neutral-400">Password</label>
-                        <div className="relative">
-                          <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                          <input
-                            type="password"
-                            required
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="••••••••"
-                            className="w-full min-h-[44px] rounded-xl border border-border bg-card pl-10 pr-3.5 py-2 text-xs text-foreground outline-none focus:border-[#B0CB1F] focus:ring-1 focus:ring-[#B0CB1F]"
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full min-h-[46px] rounded-xl bg-[#B0CB1F] hover:bg-[#9cb519] active:bg-[#889e14] text-slate-950 font-black text-xs tracking-wide shadow-[0_4px_16px_rgba(176,203,31,0.3)] flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all disabled:opacity-60"
-                  >
-                    {isLoading ? (
-                      <span>Processing...</span>
-                    ) : (
-                      <>
-                        <span>{authMethod === "phone" ? "Continue" : tab === "login" ? "Sign In" : "Create Account"}</span>
-                        <ArrowRight className="h-4 w-4" />
-                      </>
-                    )}
-                  </button>
+                  <div className="space-y-1">
+                    <label htmlFor="auth-phone" className="text-[11px] font-bold text-neutral-600 dark:text-neutral-400">
+                      Mobile Number
+                    </label>
+                    <div
+                      className={`flex items-center rounded-xl border bg-card focus-within:border-[#B0CB1F] focus-within:ring-1 focus-within:ring-[#B0CB1F] overflow-hidden ${borderFor("phone")}`}
+                    >
+                      <span className="flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-bold text-neutral-500 border-r border-border bg-secondary/40">
+                        <Phone className="h-3.5 w-3.5" />
+                        +91
+                      </span>
+                      <input
+                        id="auth-phone"
+                        type="tel"
+                        inputMode="numeric"
+                        autoComplete="tel-national"
+                        maxLength={10}
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                        placeholder="98765 43210"
+                        className="w-full min-h-[44px] bg-transparent px-3 py-2 text-xs text-foreground outline-none font-medium"
+                      />
+                    </div>
+                    {fieldError("phone")}
+                  </div>
                 </>
               ) : (
-                /* OTP STEP */
-                <div className="space-y-4 pt-1">
-                  <div className="flex justify-center gap-3">
-                    {otp.map((digit, idx) => (
-                      <input
-                        key={idx}
-                        id={`otp-${idx}`}
-                        type="text"
-                        maxLength={1}
-                        value={digit}
-                        onChange={(e) => handleOtpChange(idx, e.target.value)}
-                        className="h-12 w-12 rounded-xl border-2 border-border bg-card text-center font-display text-xl font-black text-foreground outline-none focus:border-[#B0CB1F] focus:ring-2 focus:ring-[#B0CB1F]/30"
-                      />
-                    ))}
+                <div className="space-y-1">
+                  <label htmlFor="auth-identifier" className="text-[11px] font-bold text-neutral-600 dark:text-neutral-400">
+                    Email or Mobile Number
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                    <input
+                      id="auth-identifier"
+                      type="text"
+                      autoComplete="username"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      placeholder="you@example.com or 98765 43210"
+                      className={`${inputClass} ${borderFor("identifier")}`}
+                    />
                   </div>
-
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full min-h-[46px] rounded-xl bg-[#B0CB1F] hover:bg-[#9cb519] active:bg-[#889e14] text-slate-950 font-black text-xs tracking-wide shadow-[0_4px_16px_rgba(176,203,31,0.3)] flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all disabled:opacity-60"
-                  >
-                    {isLoading ? "Verifying..." : "Verify & Continue"}
-                  </button>
-
-                  <div className="flex justify-between items-center text-xs text-neutral-500 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setStep("input")}
-                      className="hover:underline cursor-pointer"
-                    >
-                      ← Change number
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOtp(["", "", "", ""]);
-                        setError("New OTP sent via SMS!");
-                      }}
-                      className="text-[#5b6a07] dark:text-[#B0CB1F] font-bold hover:underline cursor-pointer"
-                    >
-                      Resend Code
-                    </button>
-                  </div>
+                  {fieldError("identifier")}
                 </div>
               )}
+
+              <div className="space-y-1">
+                <label htmlFor="auth-password" className="text-[11px] font-bold text-neutral-600 dark:text-neutral-400">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                  <input
+                    id="auth-password"
+                    type="password"
+                    autoComplete={tab === "signup" ? "new-password" : "current-password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={tab === "signup" ? "At least 6 characters" : "••••••••"}
+                    className={`${inputClass} ${borderFor("password")}`}
+                  />
+                </div>
+                {fieldError("password")}
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full min-h-[46px] rounded-xl bg-[#B0CB1F] hover:bg-[#9cb519] active:bg-[#889e14] text-slate-950 font-black text-xs tracking-wide shadow-[0_4px_16px_rgba(176,203,31,0.3)] flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all disabled:opacity-60"
+              >
+                {isLoading ? (
+                  <span>{tab === "login" ? "Signing In..." : "Creating Account..."}</span>
+                ) : (
+                  <>
+                    <span>{tab === "login" ? "Sign In" : "Create Account"}</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </button>
             </form>
 
             {/* Toggle Login / Signup */}
-            {step === "input" && (
-              <div className="pt-2 text-center text-xs text-neutral-500">
-                {tab === "login" ? (
-                  <p>
-                    Don't have an account?{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTab("signup");
-                        setError("");
-                      }}
-                      className="font-bold text-[#5b6a07] dark:text-[#B0CB1F] hover:underline cursor-pointer"
-                    >
-                      Sign Up
-                    </button>
-                  </p>
-                ) : (
-                  <p>
-                    Already have an account?{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTab("login");
-                        setError("");
-                      }}
-                      className="font-bold text-[#5b6a07] dark:text-[#B0CB1F] hover:underline cursor-pointer"
-                    >
-                      Log In
-                    </button>
-                  </p>
-                )}
-              </div>
-            )}
+            <div className="pt-2 text-center text-xs text-neutral-500">
+              {tab === "login" ? (
+                <p>
+                  Don't have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => switchTab("signup")}
+                    className="font-bold text-[#5b6a07] dark:text-[#B0CB1F] hover:underline cursor-pointer"
+                  >
+                    Sign Up
+                  </button>
+                </p>
+              ) : (
+                <p>
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => switchTab("login")}
+                    className="font-bold text-[#5b6a07] dark:text-[#B0CB1F] hover:underline cursor-pointer"
+                  >
+                    Log In
+                  </button>
+                </p>
+              )}
+            </div>
 
             {/* Trust note */}
             <div className="pt-2 flex items-center justify-center gap-1.5 text-[10.5px] text-neutral-400">

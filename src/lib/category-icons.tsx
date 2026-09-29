@@ -34,7 +34,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-const ACCENT = "#FDE68A";
+const ACCENT = "#B0CB1F";
 const LIME = "#B0CB1F";
 
 type SvgProps = { className?: string };
@@ -47,6 +47,16 @@ const Svg = ({ className, children }: SvgProps & { children: React.ReactNode }) 
 
 /** Hand-drawn two-tone icons used across the storefront category rail. */
 const CUSTOM_ICONS: Record<string, { label: string; render: (p: SvgProps) => React.ReactNode }> = {
+  "for-you": {
+    label: "For You",
+    render: (p) => (
+      <Svg {...p}>
+        <path d="M10.5 8a4 4 0 0 1 8 0Z" fill={ACCENT} />
+        <path d="M4.5 8h15l-1.2 11.2a2 2 0 0 1-2 1.8H7.7a2 2 0 0 1-2-1.8L4.5 8Z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
+        <path d="M9.5 12.5a2.5 2.5 0 0 0 5 0" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      </Svg>
+    ),
+  },
   sparkle: {
     label: "Sparkle",
     render: (p) => (
@@ -261,7 +271,7 @@ export const CATEGORY_ICON_OPTIONS: { key: string; label: string }[] = [
 
 /** Icons for the seeded categories, used when a stored value is still an old emoji. */
 const SLUG_DEFAULTS: Record<string, string> = {
-  all: "sparkle",
+  all: "for-you",
   "mobile-electronics": "phone",
   "audio-speakers": "headphones",
   "car-accessories": "car",

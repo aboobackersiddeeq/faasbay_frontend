@@ -330,12 +330,12 @@ export function AutoSlidingSpotlight() {
                 draggable={false}
                 aria-hidden={isClone || undefined}
                 tabIndex={isClone ? -1 : undefined}
-                className={`group relative block shrink-0 snap-start overflow-hidden rounded-2xl basis-[86%] sm:basis-[62%] md:basis-[calc((100%_-_0.75rem)/2)] lg:basis-[calc((100%_-_2rem)/3)] aspect-[1.9/1] md:aspect-[2.05/1] lg:aspect-[1.85/1] bg-gradient-to-br ${theme.bg} ${BANNER_DARK_BG} cursor-pointer`}
+                className={`group relative block shrink-0 snap-start overflow-hidden rounded-2xl basis-[86%] sm:basis-[62%] md:basis-[calc((100%_-_0.75rem)/2)] lg:basis-[calc((100%_-_2rem)/3)] aspect-[1.9/1] md:aspect-[2.15/1] lg:aspect-[2.05/1] xl:aspect-[2.15/1] bg-gradient-to-br ${theme.bg} ${BANNER_DARK_BG} cursor-pointer`}
               >
                 {/* Ambient light */}
                 <div className="pointer-events-none absolute -top-1/2 right-[5%] h-[140%] aspect-square rounded-full bg-white/45 dark:bg-white/[0.04] blur-3xl" />
 
-                <div className="absolute inset-0 flex items-stretch gap-3 p-4 sm:p-5 xl:p-6">
+                <div className="absolute inset-0 flex items-stretch gap-3 px-5 py-4 lg:px-6 lg:py-5">
                   {/* Copy — one compact stack, vertically centred */}
                   <div className="z-10 flex min-w-0 flex-1 flex-col justify-center">
                     <div className="space-y-1.5 lg:space-y-2">

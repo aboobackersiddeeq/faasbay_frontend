@@ -20,6 +20,118 @@ export interface Review {
   userPhoto?: string;
   images?: string[];
   helpfulCount?: number;
+  /** Missing on reviews saved before moderation existed — those count as Approved. */
+  status?: ReviewStatus;
+  source?: "customer" | "admin";
+  submittedAt?: string;
+}
+
+export type ReviewStatus = "Pending" | "Approved" | "Rejected";
+
+/** Only approved reviews are shown to shoppers or counted in the rating. */
+export function isApprovedReview(review: Pick<Review, "status"> | undefined): boolean {
+  return !review?.status || review.status === "Approved";
+}
+
+export function reviewStatusOf(review: Pick<Review, "status">): ReviewStatus {
+  return review.status || "Approved";
+}
+
+/** "2026-09-12" → "12 Sep 2026"; free text from older reviews ("2 days ago") is shown as-is. */
+export function formatReviewDate(value: string | undefined): string {
+  const s = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return s;
+  const d = new Date(`${s.slice(0, 10)}T00:00:00`);
+  return Number.isNaN(d.getTime())
+    ? s
+    : d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** Today as YYYY-MM-DD in the viewer's timezone (the value a date input expects). */
+export function todayIsoDate(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// ── Shopper review submissions ──────────────────────────────────────────────
+
+/** The signed-in shopper a review is attributed to (from their registered profile). */
+export interface Reviewer {
+  name: string;
+  phone?: string | undefined;
+  email?: string | undefined;
+}
+
+export interface ReviewEligibility {
+  canReview: boolean;
+  code?: "LOGIN_REQUIRED" | "NOT_PURCHASED" | "ALREADY_REVIEWED";
+  message?: string;
+  reviewStatus?: ReviewStatus;
+}
+
+/** Asks the server whether this shopper has ordered the product and not yet reviewed it. */
+export async function checkReviewEligibility(productId: string, reviewer: Reviewer): Promise<ReviewEligibility> {
+  const result = await api.get<ReviewEligibility>(
+    `${API_ENDPOINTS.products}/${encodeURIComponent(productId)}/reviews/eligibility${queryString({
+      phone: reviewer.phone,
+      email: reviewer.email,
+    })}`
+  );
+  return result || { canReview: false };
+}
+
+/**
+ * Submits a review as the signed-in shopper — the name comes from their account,
+ * not a form field. It stays hidden from other shoppers until staff approve it.
+ */
+export async function submitProductReview(
+  productId: string,
+  reviewer: Reviewer,
+  review: { rating: number; comment: string }
+): Promise<Review> {
+  return api.post<Review>(`${API_ENDPOINTS.products}/${encodeURIComponent(productId)}/reviews`, {
+    ...review,
+    author: reviewer.name,
+    phone: reviewer.phone,
+    email: reviewer.email,
+  });
+}
+
+export interface ReviewSummary {
+  /** Average star rating, one decimal place; 0 when there are no reviews. */
+  average: number;
+  count: number;
+  /** Star breakdown, 5★ first: how many reviews gave that many stars, and their share (0-100). */
+  breakdown: { stars: number; count: number; percent: number }[];
+}
+
+/** Clamps one review's rating to a whole 1-5 star value. */
+export function reviewStars(review: Pick<Review, "rating">): number {
+  const n = Math.round(Number(review?.rating));
+  return Number.isFinite(n) ? Math.min(5, Math.max(1, n)) : 5;
+}
+
+/** Average, count and per-star breakdown of the approved reviews in a list. */
+export function summarizeReviews(reviews: Review[] | undefined): ReviewSummary {
+  const list = (Array.isArray(reviews) ? reviews : []).filter(isApprovedReview);
+  const count = list.length;
+  const tally = new Map<number, number>();
+  let total = 0;
+  for (const r of list) {
+    const raw = Number(r?.rating);
+    total += Number.isFinite(raw) ? Math.min(5, Math.max(1, raw)) : 5;
+    const stars = reviewStars(r);
+    tally.set(stars, (tally.get(stars) ?? 0) + 1);
+  }
+
+  return {
+    average: count > 0 ? Math.round((total / count) * 10) / 10 : 0,
+    count,
+    breakdown: [5, 4, 3, 2, 1].map((stars) => {
+      const n = tally.get(stars) ?? 0;
+      return { stars, count: n, percent: count > 0 ? Math.round((n / count) * 100) : 0 };
+    }),
+  };
 }
 
 export type Product = {
@@ -71,6 +183,13 @@ export function formatProductForStorefront(p: any): Product {
 
   const gallery = Array.isArray(p.images) && p.images.length > 0 ? p.images : p.image ? [p.image] : [];
 
+  // The review list is the source of truth — the stored rating/reviewsCount can
+  // lag behind it (older documents, partial updates), so derive both from it.
+  // The API already hides unapproved reviews from the storefront; filter again so
+  // an admin-catalog document passed through here can never leak one.
+  const customerReviews: Review[] = (Array.isArray(p.customerReviews) ? p.customerReviews : []).filter(isApprovedReview);
+  const reviewSummary = summarizeReviews(customerReviews);
+
   // Parse specifications into structured array
   let parsedSpecs: { label: string; value: string }[] = [];
   if (Array.isArray(p.specifications)) {
@@ -108,13 +227,13 @@ export function formatProductForStorefront(p: any): Product {
     stock: p.stock !== undefined ? Number(p.stock) : 10,
     boughtLast24h: p.boughtLast24h || 0,
     viewersNow: p.viewersNow || 1,
-    rating: typeof p.rating === "number" ? p.rating : 5.0,
-    reviews: p.reviewsCount || (Array.isArray(p.customerReviews) ? p.customerReviews.length : p.reviews || 0),
+    rating: reviewSummary.count > 0 ? reviewSummary.average : typeof p.rating === "number" ? p.rating : 5.0,
+    reviews: reviewSummary.count,
     image: p.image || gallery[0] || "",
     images: gallery,
     description: p.description || "",
     materials: Array.isArray(p.materials) ? p.materials : [],
-    customerReviews: Array.isArray(p.customerReviews) ? p.customerReviews : [],
+    customerReviews,
     freeShipping: p.freeShipping ?? true,
     isFlashDeal: p.isFlashDeal ?? false,
     dealExpiresAt: p.dealExpiresAt || undefined,
@@ -157,7 +276,7 @@ const storefrontStore = createRemoteStore<Product[]>([], async () => {
 
 /** The admin catalog, which also includes Draft and Archived products. */
 const adminCatalogStore = createRemoteStore<any[]>([], async () => {
-  const rows = await api.get<any[]>(API_ENDPOINTS.products);
+  const rows = await api.get<any[]>(`${API_ENDPOINTS.products}${queryString({ includePending: 1 })}`);
   return Array.isArray(rows) ? rows : [];
 });
 
@@ -298,9 +417,9 @@ interface CategoryRow {
 
 const ALL_CATEGORY: StoreCategory = {
   id: "all",
-  label: "All Products",
+  label: "For You",
   description: "Explore the entire product catalog",
-  icon: "sparkle",
+  icon: "for-you",
   isAll: true,
 };
 
@@ -335,7 +454,13 @@ const categoriesStore = createRemoteStore<StoreCategory[]>(FALLBACK_CATEGORIES, 
   // The "All Products" row can be renamed or re-iconed but never hidden —
   // it's how shoppers clear a category filter.
   const all: StoreCategory = allRow
-    ? { ...ALL_CATEGORY, label: allRow.name || ALL_CATEGORY.label, description: allRow.description || ALL_CATEGORY.description, icon: resolveCategoryIcon(allRow.icon, "all") }
+    ? {
+        ...ALL_CATEGORY,
+        // The seeded "All Products" / sparkle values are old defaults, not admin choices.
+        label: (allRow.name !== "All Products" && allRow.name) || ALL_CATEGORY.label,
+        description: allRow.description || ALL_CATEGORY.description,
+        icon: allRow.icon === "sparkle" ? ALL_CATEGORY.icon : resolveCategoryIcon(allRow.icon, "all"),
+      }
     : ALL_CATEGORY;
 
   const rest = sorted

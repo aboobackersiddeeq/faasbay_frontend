@@ -819,7 +819,7 @@ export function BannersPage() {
         <div className="space-y-4">
           <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-lg p-3 text-xs text-emerald-900 flex items-center justify-between">
             <div>
-              <strong>Middle 3-Card Auto-Sliding Spotlight:</strong> 3 side-by-side commercial promo columns. Add unlimited rotating promo slides into any column.
+              <strong>Spotlight Card Strip:</strong> one endlessly scrolling row of promo cards (3 visible on desktop, 1 on mobile). Cards play in order: 1st of each column, then 2nd of each, and so on — add as many as you like.
             </div>
             <span className="font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded text-[11px]">
               {spotlightSlides.length} Total Promo Cards
@@ -1372,7 +1372,29 @@ export function BannersPage() {
       >
         {editingSpotlight && (
           <div className="space-y-3.5">
-            <FormField label="Assign to Column" required>
+            <div className="rounded-lg border border-sky-200/80 bg-sky-50/70 p-3 text-[11.5px] leading-relaxed text-sky-900">
+              <p className="font-semibold mb-1">Tips for a clean, premium card</p>
+              <ul className="list-disc pl-4 space-y-0.5">
+                <li>
+                  <strong>Image:</strong> background-removed product cut-out — transparent PNG or WebP,
+                  square <strong>800 × 800 px</strong>, product centred with ~10% empty space around it, under 300 KB.
+                  Avoid photos with a scene or coloured background; they show as a box on the card.
+                </li>
+                <li>
+                  <strong>Headline:</strong> up to {SPOTLIGHT_LIMITS.title} characters (1–2 short words fit best,
+                  e.g. "SPATIAL AUDIO").
+                </li>
+                <li>
+                  <strong>Subtitle:</strong> up to {SPOTLIGHT_LIMITS.subtitle} characters — shows on max 2 lines.
+                </li>
+                <li>
+                  <strong>Tag:</strong> up to {SPOTLIGHT_LIMITS.tag} characters (NEW, HOT, 30% OFF). The card
+                  colour is picked automatically.
+                </li>
+              </ul>
+            </div>
+
+            <FormField label="Assign to Column" required hint="Sets the play order in the strip (column 1 → 2 → 3, then repeat)">
               <Select
                 options={[
                   { value: "col-1", label: "Column 1 — Audio & Earbuds" },
@@ -1390,14 +1412,14 @@ export function BannersPage() {
             </FormField>
 
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Headline / Badge Title" required>
+              <FormField label="Headline / Badge Title" required {...spotlightCounter(editingSpotlight.badgeTitle, SPOTLIGHT_LIMITS.title, "max 2 lines")}>
                 <Input
                   value={editingSpotlight.badgeTitle}
                   placeholder="e.g. SPATIAL AUDIO"
                   onChange={(e) => setEditingSpotlight({ ...editingSpotlight, badgeTitle: e.target.value })}
                 />
               </FormField>
-              <FormField label="Ribbon Tag">
+              <FormField label="Ribbon Tag" {...spotlightCounter(editingSpotlight.tagRibbon, SPOTLIGHT_LIMITS.tag, "short word")}>
                 <Input
                   value={editingSpotlight.tagRibbon}
                   placeholder="e.g. 30% OFF, NEW, HOT"
@@ -1406,7 +1428,7 @@ export function BannersPage() {
               </FormField>
             </div>
 
-            <FormField label="Subtitle Description" required>
+            <FormField label="Subtitle Description" required {...spotlightCounter(editingSpotlight.subtitle, SPOTLIGHT_LIMITS.subtitle, "max 2 lines")}>
               <Input
                 value={editingSpotlight.subtitle}
                 placeholder="e.g. LOSSLESS LDAC WIRELESS EARBUDS"
@@ -1415,7 +1437,7 @@ export function BannersPage() {
             </FormField>
 
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Price" required>
+              <FormField label="Price" required {...spotlightCounter(editingSpotlight.price, SPOTLIGHT_LIMITS.price, "e.g. ₹2,299")}>
                 <Input
                   value={editingSpotlight.price}
                   placeholder="e.g. ₹2,299"
@@ -1431,9 +1453,9 @@ export function BannersPage() {
               </FormField>
             </div>
 
-            <FormField label="Product Image" hint="📐 Recommended: 1000 × 500 px (Landscape) or 800 × 800 px (Square PNG/WebP)">
+            <FormField label="Product Image" hint="📐 800 × 800 px square · transparent PNG/WebP (background removed) · under 300 KB">
               <div className="flex items-center gap-3">
-                <div className="w-14 h-14 rounded-xl bg-white dark:bg-white/10 border border-slate-200/90 dark:border-white/10 p-1 flex items-center justify-center shrink-0">
+                <div className="w-14 h-14 rounded-xl bg-[repeating-conic-gradient(#e5e7eb_0%_25%,#fff_0%_50%)] bg-[length:10px_10px] border border-slate-200/90 dark:border-white/10 p-1 flex items-center justify-center shrink-0" title="Checkerboard shows transparent areas">
                   <img src={editingSpotlight.image} alt="" className="max-h-full max-w-full object-contain" />
                 </div>
                 <div className="flex-1 space-y-1.5 min-w-0">
@@ -1893,6 +1915,20 @@ export function PagesPage() {
 export const PagesCMSPage = PagesPage;
 
 // ── Footer CMS ──────────────────────────────────────────────────────────────
+
+// Spotlight card text limits — beyond these the storefront card clips the text
+const SPOTLIGHT_LIMITS = { title: 22, tag: 10, subtitle: 44, price: 12 };
+
+const spotlightCounter = (
+  value: string | undefined,
+  max: number,
+  note: string,
+): { hint: string; error?: string } => {
+  const len = (value || "").length;
+  return len > max
+    ? { hint: "", error: `${len}/${max} characters — too long, it will be cut off on the card` }
+    : { hint: `${len}/${max} characters · ${note}` };
+};
 
 // Brand block spans 2 of the storefront footer's 4 grid slots
 const MAX_FOOTER_COLUMNS = 2;

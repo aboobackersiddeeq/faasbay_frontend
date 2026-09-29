@@ -11,7 +11,7 @@
 import type { AdminProduct } from "./types";
 import { API_ENDPOINTS } from "@/config/api";
 import { api } from "@/lib/api-client";
-import { refreshProducts as refreshStorefrontCatalog } from "@/components/store/data";
+import { refreshProducts as refreshStorefrontCatalog, type Review } from "@/components/store/data";
 
 const PRODUCTS_UPDATED_EVENT = "faasbay_products_updated";
 
@@ -46,7 +46,8 @@ export function refreshAdminProducts(): Promise<AdminProduct[]> {
   if (inFlight) return inFlight;
 
   inFlight = api
-    .get<AdminProduct[]>(API_ENDPOINTS.products)
+    // includePending: staff need to see reviews awaiting moderation.
+    .get<AdminProduct[]>(`${API_ENDPOINTS.products}?includePending=1`)
     .then((rows) => {
       cache = Array.isArray(rows) ? rows : [];
       loaded = true;
@@ -112,6 +113,38 @@ export async function deleteProducts(ids: string[]): Promise<{ deleted: number; 
 
   await refreshEverything();
   return { deleted, failed };
+}
+
+// ── Product reviews (moderation) ────────────────────────────────────────────
+// Each call changes one review on the server, which recomputes the product's
+// rating from its approved reviews — so a shopper review arriving while staff
+// edit another one is never overwritten.
+
+const reviewsUrl = (productId: string, reviewId?: string) =>
+  `${API_ENDPOINTS.products}/${encodeURIComponent(productId)}/reviews${reviewId ? `/${encodeURIComponent(reviewId)}` : ""}`;
+
+/** Adds a staff-written review; it is live on the storefront immediately. */
+export async function addProductReview(productId: string, review: Partial<Review>): Promise<AdminProduct> {
+  const saved = await api.post<AdminProduct>(`${reviewsUrl(productId)}/admin`, review);
+  await refreshEverything();
+  return saved;
+}
+
+/** Edits a review, or approves/rejects it via `{ status }`. */
+export async function updateProductReview(
+  productId: string,
+  reviewId: string,
+  changes: Partial<Review>
+): Promise<AdminProduct> {
+  const saved = await api.patch<AdminProduct>(reviewsUrl(productId, reviewId), changes);
+  await refreshEverything();
+  return saved;
+}
+
+export async function deleteProductReview(productId: string, reviewId: string): Promise<AdminProduct> {
+  const saved = await api.delete<AdminProduct>(reviewsUrl(productId, reviewId));
+  await refreshEverything();
+  return saved;
 }
 
 /** Upserts many products in one request (import, or a bulk status change). */

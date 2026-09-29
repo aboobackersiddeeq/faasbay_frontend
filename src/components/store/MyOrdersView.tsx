@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Package,
@@ -9,8 +9,59 @@ import {
   XCircle,
   MapPin,
   RefreshCw,
+  Star,
 } from "lucide-react";
-import { fetchMyOrders, type MyOrder } from "@/lib/customer-account";
+import { fetchMyOrders, type MyOrder, type MyOrderItem } from "@/lib/customer-account";
+import { useCart } from "@/hooks/use-cart";
+import { checkReviewEligibility, type ReviewEligibility, type Reviewer } from "./data";
+import { WriteReviewForm, type ReviewTarget } from "./WriteReviewForm";
+
+/** Per-product review state: whether the shopper can still review it. */
+type ReviewStates = Record<string, ReviewEligibility>;
+
+/** Mirrors the server: cancelled/failed/refunded/returned orders can't be reviewed. */
+const VOID_ORDER = /cancel|fail|refund|return|reject/i;
+const isReviewableOrder = (order: MyOrder) =>
+  !VOID_ORDER.test(order.orderStatus || "") && !VOID_ORDER.test(order.paymentStatus || "");
+
+/** "Write a review" / "Reviewed" control for one ordered product. */
+function ReviewAction({
+  item,
+  state,
+  onWrite,
+  compact = false,
+}: {
+  item: MyOrderItem;
+  state: ReviewEligibility | undefined;
+  onWrite: (target: ReviewTarget) => void;
+  compact?: boolean;
+}) {
+  if (!state) return null;
+  if (state.code === "ALREADY_REVIEWED") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-emerald-600 dark:text-emerald-400">
+        <CheckCircle2 className="h-3 w-3" />
+        Reviewed
+      </span>
+    );
+  }
+  if (!state.canReview) return null;
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onWrite({ productId: item.productId, title: item.title, image: item.image });
+      }}
+      className={`inline-flex items-center gap-1 rounded-lg border border-[#B0CB1F]/60 bg-[#B0CB1F]/10 font-bold text-[#5b6a07] dark:text-[#B0CB1F] hover:bg-[#B0CB1F]/20 transition-colors cursor-pointer ${
+        compact ? "px-2 py-1 text-[10.5px]" : "px-2.5 py-1.5 text-[11px]"
+      }`}
+    >
+      <Star className="h-3 w-3" />
+      Write a review
+    </button>
+  );
+}
 
 interface MyOrdersViewProps {
   phone?: string;
@@ -19,12 +70,30 @@ interface MyOrdersViewProps {
 }
 
 const STATUS_STYLES: Record<string, { badge: string; icon: React.ElementType }> = {
-  Processing: { badge: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400", icon: Clock },
-  Shipped: { badge: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400", icon: Truck },
-  Dispatched: { badge: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400", icon: Truck },
-  "Out for Delivery": { badge: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400", icon: Truck },
-  Delivered: { badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400", icon: CheckCircle2 },
-  Cancelled: { badge: "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400", icon: XCircle },
+  Processing: {
+    badge: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
+    icon: Clock,
+  },
+  Shipped: {
+    badge: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400",
+    icon: Truck,
+  },
+  Dispatched: {
+    badge: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400",
+    icon: Truck,
+  },
+  "Out for Delivery": {
+    badge: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400",
+    icon: Truck,
+  },
+  Delivered: {
+    badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
+    icon: CheckCircle2,
+  },
+  Cancelled: {
+    badge: "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400",
+    icon: XCircle,
+  },
 };
 
 function statusStyle(status: string) {
@@ -33,7 +102,11 @@ function statusStyle(status: string) {
 
 function formatDate(iso: string) {
   try {
-    return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    return new Date(iso).toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
   } catch {
     return iso;
   }
@@ -44,6 +117,53 @@ export function MyOrdersView({ phone, email, onBack }: MyOrdersViewProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<MyOrder | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null);
+  const [reviewStates, setReviewStates] = useState<ReviewStates>({});
+
+  // Reviews are posted under the name the shopper registered with.
+  const { userProfile } = useCart();
+  const reviewer: Reviewer | null = userProfile
+    ? { name: userProfile.name, phone: userProfile.phone, email: userProfile.email }
+    : null;
+
+  // Products from non-cancelled orders — the only ones that can be reviewed.
+  const reviewableProductIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          orders
+            .filter(isReviewableOrder)
+            .flatMap((o) => o.items.map((i) => i.productId))
+            .filter(Boolean),
+        ),
+      ),
+    [orders],
+  );
+
+  // Ask the server once per product whether it can still be reviewed.
+  useEffect(() => {
+    if (!reviewer || reviewableProductIds.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      reviewableProductIds.map((id) =>
+        checkReviewEligibility(id, reviewer)
+          .then((state) => [id, state] as const)
+          .catch(() => [id, { canReview: false } as ReviewEligibility] as const),
+      ),
+    ).then((entries) => {
+      if (!cancelled) setReviewStates(Object.fromEntries(entries));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewableProductIds, reviewer?.phone, reviewer?.email]);
+
+  const markReviewed = (productId: string) =>
+    setReviewStates((prev) => ({
+      ...prev,
+      [productId]: { canReview: false, code: "ALREADY_REVIEWED" },
+    }));
 
   const load = () => {
     setIsLoading(true);
@@ -59,8 +179,26 @@ export function MyOrdersView({ phone, email, onBack }: MyOrdersViewProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phone, email]);
 
+  if (reviewTarget && reviewer) {
+    return (
+      <WriteReviewForm
+        target={reviewTarget}
+        reviewer={reviewer}
+        onBack={() => setReviewTarget(null)}
+        onSubmitted={markReviewed}
+      />
+    );
+  }
+
   if (selectedOrder) {
-    return <OrderDetail order={selectedOrder} onBack={() => setSelectedOrder(null)} />;
+    return (
+      <OrderDetail
+        order={selectedOrder}
+        onBack={() => setSelectedOrder(null)}
+        reviewStates={isReviewableOrder(selectedOrder) ? reviewStates : {}}
+        onWriteReview={setReviewTarget}
+      />
+    );
   }
 
   return (
@@ -106,7 +244,9 @@ export function MyOrdersView({ phone, email, onBack }: MyOrdersViewProps) {
               <Package className="h-5 w-5" />
             </div>
             <p className="text-xs font-bold text-foreground">No orders yet</p>
-            <p className="text-[11px] text-neutral-500">Your orders will show up here once you place one.</p>
+            <p className="text-[11px] text-neutral-500">
+              Your orders will show up here once you place one.
+            </p>
           </div>
         )}
 
@@ -115,35 +255,75 @@ export function MyOrdersView({ phone, email, onBack }: MyOrdersViewProps) {
           orders.map((order) => {
             const { badge, icon: StatusIcon } = statusStyle(order.orderStatus);
             const firstItem = order.items[0];
+            const reviewable = isReviewableOrder(order);
+            const singleItem = order.items.length === 1 ? order.items[0] : undefined;
+            const anyToReview =
+              reviewable && order.items.some((i) => reviewStates[i.productId]?.canReview);
             return (
-              <button
+              <div
                 key={order.orderId}
-                type="button"
-                onClick={() => setSelectedOrder(order)}
-                className="w-full flex items-center gap-3 p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] hover:bg-secondary/40 transition-colors text-left cursor-pointer"
+                className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] overflow-hidden"
               >
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-secondary overflow-hidden">
-                  {firstItem?.image ? (
-                    <img src={firstItem.image} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <Package className="h-4.5 w-4.5 text-neutral-400" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-foreground truncate">#{order.orderId}</span>
-                    <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9.5px] font-bold ${badge}`}>
-                      <StatusIcon className="h-2.5 w-2.5" />
-                      {order.orderStatus}
-                    </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrder(order)}
+                  className="w-full flex items-center gap-3 p-3.5 hover:bg-secondary/40 transition-colors text-left cursor-pointer"
+                >
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-secondary overflow-hidden">
+                    {firstItem?.image ? (
+                      <img src={firstItem.image} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <Package className="h-4.5 w-4.5 text-neutral-400" />
+                    )}
                   </div>
-                  <p className="text-[10.5px] text-neutral-500 truncate">
-                    {formatDate(order.createdAt)} · {order.items.length} item{order.items.length !== 1 ? "s" : ""} · ₹
-                    {order.totalAmount.toLocaleString("en-IN")}
-                  </p>
-                </div>
-                <ChevronRight className="h-4 w-4 text-neutral-400 shrink-0" />
-              </button>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-foreground truncate">
+                        #{order.orderId}
+                      </span>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9.5px] font-bold ${badge}`}
+                      >
+                        <StatusIcon className="h-2.5 w-2.5" />
+                        {order.orderStatus}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-neutral-500 truncate">
+                      {formatDate(order.createdAt)} · {order.items.length} item
+                      {order.items.length !== 1 ? "s" : ""} · ₹
+                      {order.totalAmount.toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-neutral-400 shrink-0" />
+                </button>
+
+                {/* Review — one product: review it here; several: pick in the order detail */}
+                {reviewable &&
+                  singleItem &&
+                  reviewStates[singleItem.productId] &&
+                  (reviewStates[singleItem.productId]?.canReview ||
+                    reviewStates[singleItem.productId]?.code === "ALREADY_REVIEWED") && (
+                    <div className="flex justify-end px-3.5 pb-3 -mt-1">
+                      <ReviewAction
+                        item={singleItem}
+                        state={reviewStates[singleItem.productId]}
+                        onWrite={setReviewTarget}
+                      />
+                    </div>
+                  )}
+                {!singleItem && anyToReview && (
+                  <div className="flex justify-end px-3.5 pb-3 -mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedOrder(order)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-[#B0CB1F]/60 bg-[#B0CB1F]/10 px-2.5 py-1.5 text-[11px] font-bold text-[#5b6a07] dark:text-[#B0CB1F] hover:bg-[#B0CB1F]/20 transition-colors cursor-pointer"
+                    >
+                      <Star className="h-3 w-3" />
+                      Review items
+                    </button>
+                  </div>
+                )}
+              </div>
             );
           })}
       </div>
@@ -151,7 +331,17 @@ export function MyOrdersView({ phone, email, onBack }: MyOrdersViewProps) {
   );
 }
 
-function OrderDetail({ order, onBack }: { order: MyOrder; onBack: () => void }) {
+function OrderDetail({
+  order,
+  onBack,
+  reviewStates,
+  onWriteReview,
+}: {
+  order: MyOrder;
+  onBack: () => void;
+  reviewStates: ReviewStates;
+  onWriteReview: (target: ReviewTarget) => void;
+}) {
   const { badge, icon: StatusIcon } = statusStyle(order.orderStatus);
   const address = order.shippingAddress;
 
@@ -167,7 +357,9 @@ function OrderDetail({ order, onBack }: { order: MyOrder; onBack: () => void }) 
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div className="min-w-0">
-          <h3 className="font-display font-black text-sm text-foreground truncate">#{order.orderId}</h3>
+          <h3 className="font-display font-black text-sm text-foreground truncate">
+            #{order.orderId}
+          </h3>
           <p className="text-[10.5px] text-neutral-500">{formatDate(order.createdAt)}</p>
         </div>
       </div>
@@ -176,12 +368,16 @@ function OrderDetail({ order, onBack }: { order: MyOrder; onBack: () => void }) 
         {/* Status + tracking */}
         <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold ${badge}`}>
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold ${badge}`}
+            >
               <StatusIcon className="h-3.5 w-3.5" />
               {order.orderStatus}
             </span>
             {order.trackingNumber && (
-              <span className="text-[10.5px] font-mono text-neutral-500">{order.trackingNumber}</span>
+              <span className="text-[10.5px] font-mono text-neutral-500">
+                {order.trackingNumber}
+              </span>
             )}
           </div>
           {order.courier && (
@@ -205,7 +401,9 @@ function OrderDetail({ order, onBack }: { order: MyOrder; onBack: () => void }) 
                     >
                       <CheckCircle2 className="h-3 w-3" />
                     </span>
-                    {idx < order.timeline.length - 1 && <span className="w-px flex-1 bg-border min-h-[18px]" />}
+                    {idx < order.timeline.length - 1 && (
+                      <span className="w-px flex-1 bg-border min-h-[18px]" />
+                    )}
                   </div>
                   <div className="pb-3">
                     <p className="text-xs font-bold text-foreground">{entry.status}</p>
@@ -220,7 +418,9 @@ function OrderDetail({ order, onBack }: { order: MyOrder; onBack: () => void }) 
 
         {/* Items */}
         <div className="space-y-2">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Items</p>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+            Items
+          </p>
           {order.items.map((item, idx) => (
             <div key={idx} className="flex items-center gap-3 p-2.5 rounded-xl bg-secondary/40">
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-secondary overflow-hidden">
@@ -232,9 +432,21 @@ function OrderDetail({ order, onBack }: { order: MyOrder; onBack: () => void }) 
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold text-foreground truncate">{item.title}</p>
-                <p className="text-[10.5px] text-neutral-500">Qty {item.quantity} · ₹{item.unitPrice.toLocaleString("en-IN")}</p>
+                <p className="text-[10.5px] text-neutral-500">
+                  Qty {item.quantity} · ₹{item.unitPrice.toLocaleString("en-IN")}
+                </p>
+                <div className="pt-1 empty:hidden">
+                  <ReviewAction
+                    item={item}
+                    state={reviewStates[item.productId]}
+                    onWrite={onWriteReview}
+                    compact
+                  />
+                </div>
               </div>
-              <span className="text-xs font-bold text-foreground shrink-0">₹{item.total.toLocaleString("en-IN")}</span>
+              <span className="text-xs font-bold text-foreground shrink-0">
+                ₹{item.total.toLocaleString("en-IN")}
+              </span>
             </div>
           ))}
         </div>
@@ -242,13 +454,17 @@ function OrderDetail({ order, onBack }: { order: MyOrder; onBack: () => void }) 
         {/* Delivery address */}
         {address && (
           <div className="space-y-1.5">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Delivery Address</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+              Delivery Address
+            </p>
             <div className="flex items-start gap-2.5 p-3 rounded-xl bg-secondary/40">
               <MapPin className="h-4 w-4 text-neutral-400 mt-0.5 shrink-0" />
               <p className="text-xs text-foreground leading-relaxed">
                 {address.name && <span className="font-bold">{address.name}</span>}
                 {address.name && <br />}
-                {[address.street, address.city, address.state, address.pincode].filter(Boolean).join(", ")}
+                {[address.street, address.city, address.state, address.pincode]
+                  .filter(Boolean)
+                  .join(", ")}
               </p>
             </div>
           </div>
@@ -268,7 +484,9 @@ function OrderDetail({ order, onBack }: { order: MyOrder; onBack: () => void }) 
           )}
           <div className="flex justify-between text-[11px] text-neutral-500">
             <span>Shipping</span>
-            <span>{order.shippingFee > 0 ? `₹${order.shippingFee.toLocaleString("en-IN")}` : "Free"}</span>
+            <span>
+              {order.shippingFee > 0 ? `₹${order.shippingFee.toLocaleString("en-IN")}` : "Free"}
+            </span>
           </div>
           <div className="flex justify-between text-xs font-black text-foreground pt-1">
             <span>Total</span>

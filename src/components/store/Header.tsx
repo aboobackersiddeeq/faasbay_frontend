@@ -25,7 +25,8 @@ import {
   Home,
 } from "lucide-react";
 import faasbayLogo from "@/assets/faasbay-logo.png";
-import { HeaderQuickNav } from "./HeaderQuickNav";
+import { HeaderQuickNav, HeaderMoreMenu } from "./HeaderQuickNav";
+import { HeaderAccountMenu } from "./HeaderAccountMenu";
 import { SearchBox } from "./SearchBox";
 import { useCart } from "@/hooks/use-cart";
 import { useWishlist, openWishlist } from "@/hooks/use-wishlist";
@@ -89,24 +90,13 @@ export function Header() {
         {/* Center: Search Bar */}
         <SearchBox
           variant="desktop"
-          placeholder="Search ANC audio, smartwatches, mechanical keyboards, power docks..."
+          placeholder="Search for Products, Brands and More"
         />
 
         {/* Right: Quick Action Icons */}
         <nav className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={openWishlist}
-            aria-label={`Wishlist, ${wishlistCount} items`}
-            className="relative grid h-9 w-9 place-items-center rounded-full text-foreground transition-colors hover:bg-secondary cursor-pointer"
-          >
-            <Heart className="h-[18px] w-[18px]" />
-            {wishlistCount > 0 && (
-              <span className="absolute right-0 top-0 grid h-4 min-w-4 place-items-center rounded-full bg-neutral-900 px-1 text-[9.5px] font-bold text-white shadow-xs animate-in zoom-in-50">
-                {wishlistCount}
-              </span>
-            )}
-          </button>
+          <HeaderAccountMenu />
+          <HeaderMoreMenu />
           {/* <button
             type="button"
             aria-label="Notifications"
@@ -114,21 +104,6 @@ export function Header() {
           >
             <Bell className="h-[18px] w-[18px]" />
           </button> */}
-          <button
-            type="button"
-            aria-label="Account"
-            onClick={openAuthModal}
-            className="grid h-9 w-9 place-items-center rounded-full text-foreground transition-colors hover:bg-secondary cursor-pointer"
-          >
-            {userProfile ? (
-              <span className="grid h-6 w-6 place-items-center rounded-full bg-[#B0CB1F] text-slate-950 font-black text-[11px]">
-                {userProfile.name.charAt(0).toUpperCase()}
-              </span>
-            ) : (
-              <User className="h-[18px] w-[18px]" />
-            )}
-          </button>
-
           {/* Cart Icon */}
           <button
             type="button"
@@ -141,7 +116,7 @@ export function Header() {
           >
             <ShoppingCart className="h-[18px] w-[18px]" />
             {itemCount > 0 && (
-              <span className="absolute right-0 top-0 grid h-4 min-w-4 place-items-center rounded-full bg-neutral-900 px-1 text-[9.5px] font-bold text-white shadow-xs animate-in zoom-in-50">
+              <span className="absolute right-0 top-0 grid h-4 min-w-4 place-items-center rounded-full bg-[#B0CB1F] px-1 text-[9.5px] font-bold text-slate-950 shadow-xs animate-in zoom-in-50">
                 {itemCount}
               </span>
             )}
@@ -208,7 +183,7 @@ export function Header() {
         </div>
 
         {/* Row 2: Full-Width Prominent Search Bar */}
-        <SearchBox variant="mobile" placeholder="Search audio, smartwatches, keyboards..." />
+        <SearchBox variant="mobile" placeholder="Search for Products, Brands and More" />
       </div>
 
       {/* 3. MOBILE SLIDE-OUT CATEGORY DRAWER / SHEET */}

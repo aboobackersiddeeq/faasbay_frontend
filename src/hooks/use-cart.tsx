@@ -8,6 +8,8 @@ export interface CartItem {
   selectedVariant?: string | undefined;
 }
 
+export type AccountView = "menu" | "orders" | "addresses";
+
 export interface UserProfile {
   name: string;
   email: string;
@@ -34,6 +36,8 @@ interface CartContextType {
   isCartOpen: boolean;
   isCheckoutOpen: boolean;
   isAuthOpen: boolean;
+  accountView: AccountView;
+  setAccountView: (view: AccountView) => void;
   userProfile: UserProfile | null;
   selectedProductForDetail: Product | null;
   isExitIntentOpen: boolean;
@@ -67,6 +71,8 @@ interface CartContextType {
   checkoutTotal: number;
   checkoutItemCount: number;
   openAuthModal: () => void;
+  /** Opens the account modal straight on one of its views (orders, addresses…). */
+  openAccountView: (view: AccountView) => void;
   closeAuthModal: () => void;
   loginUser: (profile: UserProfile) => void;
   logoutUser: () => void;
@@ -102,6 +108,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [buyNowItem, setBuyNowItem] = useState<CartItem | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [accountView, setAccountView] = useState<AccountView>("menu");
   const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -145,7 +152,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const openAuthModal = () => setIsAuthOpen(true);
+  const openAuthModal = () => {
+    setAccountView("menu");
+    setIsAuthOpen(true);
+  };
+  const openAccountView = (view: AccountView) => {
+    setAccountView(view);
+    setIsAuthOpen(true);
+  };
   const closeAuthModal = () => setIsAuthOpen(false);
 
   // Persist cart to localStorage
@@ -422,6 +436,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         checkoutTotal,
         checkoutItemCount,
         isAuthOpen,
+        accountView,
+        setAccountView,
         userProfile,
         selectedProductForDetail,
         isExitIntentOpen,
@@ -445,6 +461,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         openCheckout,
         closeCheckout,
         openAuthModal,
+        openAccountView,
         closeAuthModal,
         loginUser,
         logoutUser,

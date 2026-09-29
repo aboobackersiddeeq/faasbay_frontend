@@ -65,7 +65,12 @@ import { RichDescriptionEditor } from "./RichDescriptionEditor";
 import type { AdminProduct } from "./shared/types";
 import {
   formatProductForStorefront,
+  summarizeReviews,
+  todayIsoDate,
+  formatReviewDate,
+  reviewStatusOf,
   type Review,
+  type ReviewStatus,
 } from "@/components/store/data";
 import {
   getCachedAdminProducts,
@@ -76,6 +81,9 @@ import {
   updateProduct as updateProductApi,
   deleteProduct as deleteProductApi,
   deleteProducts as deleteProductsApi,
+  addProductReview as addProductReviewApi,
+  updateProductReview as updateProductReviewApi,
+  deleteProductReview as deleteProductReviewApi,
 } from "./shared/product-store";
 import { uploadImageToCloud, uploadImagesToCloud } from "./shared/uploadImage";
 import { API_ENDPOINTS } from "@/config/api";
@@ -517,6 +525,8 @@ export function ProductsList({
   const [reviewAvatar, setReviewAvatar] = useState("");
   const [reviewImages, setReviewImages] = useState<string[]>([]);
   const [reviewImageInput, setReviewImageInput] = useState("");
+  // Id of the review whose save/approve/delete request is in flight ("new" when adding).
+  const [reviewBusyId, setReviewBusyId] = useState<string | null>(null);
   const [isSavingProduct, setIsSavingProduct] = useState(false);
   // Homepage Collections & Placements (all active by default for new products)
   const [selectedCollections, setSelectedCollections] = useState<string[]>([
@@ -1631,9 +1641,8 @@ export function ProductsList({
       const parsedStock = parseInt(String(stockCount || "").replace(/[^0-9]/g, ""), 10) || 0;
 
       const safeReviews = Array.isArray(reviewsList) ? reviewsList : [];
-      const calculatedRating = safeReviews.length > 0
-        ? Number((safeReviews.reduce((sum, r) => sum + (r.rating || 5), 0) / safeReviews.length).toFixed(1))
-        : 5.0;
+      const reviewSummary = summarizeReviews(safeReviews);
+      const calculatedRating = reviewSummary.count > 0 ? reviewSummary.average : 5.0;
 
       const safeColors = Array.isArray(selectedColors) ? selectedColors : ["None"];
       const activeColors = safeColors.filter((c) => c !== "None");
@@ -1705,7 +1714,7 @@ export function ProductsList({
         hasVariants: hasVariants,
         warranty: warrantyInfo || specificationsList.find((s) => s.label.toLowerCase() === "warranty" && s.value.trim())?.value || "",
         rating: calculatedRating,
-        reviewsCount: safeReviews.length,
+        reviewsCount: reviewSummary.count,
         customerReviews: safeReviews,
         freeShipping: deliveryType === "free",
         isFlashDeal: isFlashDeal ?? false,
@@ -1721,7 +1730,11 @@ export function ProductsList({
       // has accepted the product do we update what the admin is looking at.
       try {
         if (isEditing) {
-          await updateProductApi(formId, newProduct);
+          // Reviews were already saved one by one (see runReviewRequest). Leaving
+          // them out here means a shopper review submitted while this form was
+          // open isn't wiped by an older copy of the list.
+          const { customerReviews: _r, rating: _rt, reviewsCount: _rc, ...productFields } = newProduct;
+          await updateProductApi(formId, productFields);
         } else {
           await createProductApi(newProduct);
         }
@@ -1765,7 +1778,7 @@ export function ProductsList({
     setEditingReviewId(null);
     setReviewAuthor("");
     setReviewRating(5);
-    setReviewDate("2 days ago");
+    setReviewDate(todayIsoDate());
     setReviewComment("");
     setReviewVerified(true);
     setReviewAvatar("");
@@ -1778,7 +1791,9 @@ export function ProductsList({
     setEditingReviewId(rev.id);
     setReviewAuthor(rev.author);
     setReviewRating(rev.rating);
-    setReviewDate(rev.date);
+    // Older reviews may hold free text like "2 days ago" — the date picker can't
+    // show that, so it starts empty and saving leaves the original untouched.
+    setReviewDate(/^\d{4}-\d{2}-\d{2}$/.test(String(rev.date || "")) ? rev.date : "");
     setReviewComment(rev.comment);
     setReviewVerified(rev.verified);
     setReviewAvatar(rev.userPhoto || "");
@@ -1787,44 +1802,103 @@ export function ProductsList({
     setShowAddReviewModal(true);
   };
 
-  const handleSaveCustomReview = () => {
-    if (!reviewAuthor.trim() || !reviewComment.trim()) return;
+  // Reviews on an already-saved product are written to MongoDB straight away,
+  // one review per request, so they reach the storefront without pressing Save
+  // and a shopper review arriving meanwhile is never overwritten. A product that
+  // hasn't been created yet keeps them locally until its first save.
+  const reviewsLiveOnServer = isEditing && Boolean(formId);
 
+  const runReviewRequest = async (
+    busyId: string,
+    request: () => Promise<AdminProduct>,
+    successMessage: string
+  ): Promise<boolean> => {
+    setReviewBusyId(busyId);
+    try {
+      const saved = await request();
+      setReviewsList(Array.isArray(saved?.customerReviews) ? saved.customerReviews : []);
+      setProducts(getCachedAdminProducts());
+      toast.success(successMessage);
+      return true;
+    } catch (e: any) {
+      toast.error(e?.message || "Could not save the review. Nothing was changed.");
+      return false;
+    } finally {
+      setReviewBusyId(null);
+    }
+  };
+
+  const handleSaveCustomReview = async () => {
+    if (!reviewAuthor.trim() || !reviewComment.trim()) {
+      toast.error("Customer name and review text are required.");
+      return;
+    }
+
+    const fields: Partial<Review> = {
+      author: reviewAuthor.trim(),
+      rating: reviewRating,
+      comment: reviewComment.trim(),
+      verified: reviewVerified,
+      userPhoto: reviewAvatar.trim(),
+      images: reviewImages,
+      // Empty only when editing an old free-text date the admin didn't change.
+      ...(reviewDate ? { date: reviewDate } : {}),
+    };
+
+    if (reviewsLiveOnServer) {
+      const ok = editingReviewId
+        ? await runReviewRequest(
+            editingReviewId,
+            () => updateProductReviewApi(formId, editingReviewId, fields),
+            "Review updated."
+          )
+        : await runReviewRequest("new", () => addProductReviewApi(formId, fields), "Review published to the storefront.");
+      if (ok) setShowAddReviewModal(false);
+      return;
+    }
+
+    // Not-yet-created product: keep locally, sent with the first save.
+    const { userPhoto, ...rest } = fields;
+    const local = { ...rest, ...(userPhoto ? { userPhoto } : {}) };
     if (editingReviewId) {
       setReviewsList((prev) =>
-        prev.map((r) =>
-          r.id === editingReviewId
-            ? {
-                ...r,
-                author: reviewAuthor.trim(),
-                rating: reviewRating,
-                date: reviewDate.trim() || "Recently",
-                comment: reviewComment.trim(),
-                verified: reviewVerified,
-                userPhoto: reviewAvatar.trim() || undefined,
-                images: reviewImages,
-              }
-            : r
-        )
+        prev.map((r): Review => {
+          if (r.id !== editingReviewId) return r;
+          const { userPhoto: _old, ...keep } = r;
+          return { ...keep, ...local } as Review;
+        })
       );
     } else {
-      const newRev: Review = {
+      const newRev = {
         id: `rev-${Date.now()}`,
-        author: reviewAuthor.trim(),
-        rating: reviewRating,
-        date: reviewDate.trim() || "Just now",
-        comment: reviewComment.trim(),
-        verified: reviewVerified,
-        userPhoto: reviewAvatar.trim() || undefined,
-        images: reviewImages,
-      };
+        date: todayIsoDate(),
+        status: "Approved",
+        source: "admin",
+        ...local,
+      } as Review;
       setReviewsList((prev) => [newRev, ...prev]);
     }
     setShowAddReviewModal(false);
   };
 
+  const handleSetReviewStatus = (revId: string, status: ReviewStatus) => {
+    if (!reviewsLiveOnServer) {
+      setReviewsList((prev) => prev.map((r) => (r.id === revId ? { ...r, status } : r)));
+      return;
+    }
+    void runReviewRequest(
+      revId,
+      () => updateProductReviewApi(formId, revId, { status }),
+      status === "Approved" ? "Review approved — now visible on the storefront." : "Review rejected — hidden from shoppers."
+    );
+  };
+
   const handleDeleteReview = (revId: string) => {
-    setReviewsList((prev) => prev.filter((r) => r.id !== revId));
+    if (!reviewsLiveOnServer) {
+      setReviewsList((prev) => prev.filter((r) => r.id !== revId));
+      return;
+    }
+    void runReviewRequest(revId, () => deleteProductReviewApi(formId, revId), "Review deleted.");
   };
 
   const handleAddReviewImage = (url: string) => {
@@ -1911,9 +1985,14 @@ export function ProductsList({
       ? Math.round(((displayMrpPrice - displaySellingPrice) / displayMrpPrice) * 100)
       : 0;
     const previewCoverImage = mainImage || (galleryImages && galleryImages[0]) || "";
-    const avgRating = reviewsList.length > 0
-      ? (reviewsList.reduce((sum, r) => sum + (r.rating || 5), 0) / reviewsList.length).toFixed(1)
-      : "4.9";
+    // Only approved reviews are public, so only they count toward the preview rating.
+    const approvedReviewSummary = summarizeReviews(reviewsList);
+    const avgRating = approvedReviewSummary.count > 0 ? approvedReviewSummary.average.toFixed(1) : "—";
+    const pendingReviewCount = reviewsList.filter((r) => reviewStatusOf(r) === "Pending").length;
+    // Pending first so moderation work is at the top.
+    const sortedReviews = [...reviewsList].sort(
+      (a, b) => Number(reviewStatusOf(b) === "Pending") - Number(reviewStatusOf(a) === "Pending")
+    );
 
     return (
       <div className="max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-200">
@@ -2812,21 +2891,51 @@ export function ProductsList({
                 </div>
                 <span className="text-slate-300">|</span>
                 <span className="text-xs font-medium text-slate-700">
-                  {reviewsList.length} Verified Customer Review{reviewsList.length !== 1 ? "s" : ""}
+                  {approvedReviewSummary.count} Published Review{approvedReviewSummary.count !== 1 ? "s" : ""}
                 </span>
+                {pendingReviewCount > 0 && (
+                  <span className="ml-auto text-[11px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                    {pendingReviewCount} awaiting approval
+                  </span>
+                )}
               </div>
 
               {/* Reviews Cards List */}
-              {reviewsList.length > 0 ? (
+              {sortedReviews.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {reviewsList.map((rev) => (
+                  {sortedReviews.map((rev) => {
+                    const status = reviewStatusOf(rev);
+                    const busy = reviewBusyId === rev.id;
+                    return (
                     <div
                       key={rev.id}
-                      className="p-3.5 rounded-xl bg-slate-50/70 border border-slate-200/80 space-y-2 relative group"
+                      className={`p-3.5 rounded-xl border space-y-2 relative group ${
+                        status === "Pending"
+                          ? "bg-amber-50/60 border-amber-200"
+                          : status === "Rejected"
+                            ? "bg-slate-50/40 border-slate-200/80 opacity-70"
+                            : "bg-slate-50/70 border-slate-200/80"
+                      } ${busy ? "pointer-events-none opacity-60" : ""}`}
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-xs font-bold text-slate-900">{rev.author}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-bold text-slate-900">{rev.author}</p>
+                            <span
+                              className={`text-[9.5px] font-semibold px-1.5 py-px rounded ${
+                                status === "Pending"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : status === "Rejected"
+                                    ? "bg-rose-100 text-rose-700"
+                                    : "bg-emerald-100 text-emerald-700"
+                              }`}
+                            >
+                              {status === "Approved" ? "Live" : status}
+                            </span>
+                            {rev.source === "customer" && (
+                              <span className="text-[9.5px] text-slate-400">via storefront</span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-1 text-amber-400 text-[10px] mt-0.5">
                             {Array.from({ length: 5 }).map((_, i) => (
                               <Star
@@ -2835,14 +2944,15 @@ export function ProductsList({
                                 className={i < rev.rating ? "fill-amber-400 text-amber-400" : "text-slate-300"}
                               />
                             ))}
-                            <span className="text-slate-400 text-[10px] ml-1">{rev.date}</span>
+                            <span className="text-slate-400 text-[10px] ml-1">{formatReviewDate(rev.date)}</span>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                           <button
                             type="button"
                             onClick={() => handleOpenEditReview(rev)}
+                            title="Edit review"
                             className="p-1 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-200/70 cursor-pointer"
                           >
                             <Edit2 size={12} />
@@ -2850,6 +2960,7 @@ export function ProductsList({
                           <button
                             type="button"
                             onClick={() => handleDeleteReview(rev.id)}
+                            title="Delete review"
                             className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
                           >
                             <Trash2 size={12} />
@@ -2860,6 +2971,29 @@ export function ProductsList({
                       <p className="text-xs text-slate-600 leading-relaxed italic line-clamp-3">
                         "{rev.comment}"
                       </p>
+
+                      {status !== "Approved" || rev.source === "customer" ? (
+                        <div className="flex items-center gap-1.5">
+                          {status !== "Approved" && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetReviewStatus(rev.id, "Approved")}
+                              className="px-2 py-0.5 text-[10.5px] font-semibold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 rounded-md cursor-pointer"
+                            >
+                              Approve
+                            </button>
+                          )}
+                          {status !== "Rejected" && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetReviewStatus(rev.id, "Rejected")}
+                              className="px-2 py-0.5 text-[10.5px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md cursor-pointer"
+                            >
+                              {status === "Approved" ? "Hide" : "Reject"}
+                            </button>
+                          )}
+                        </div>
+                      ) : null}
 
                       {rev.images && rev.images.length > 0 && (
                         <div className="flex items-center gap-1.5 pt-1 overflow-x-auto">
@@ -2878,7 +3012,8 @@ export function ProductsList({
                         </div>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="p-4 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
@@ -3127,7 +3262,7 @@ export function ProductsList({
                   <div className="flex items-center gap-1 text-amber-500 text-[10px] pt-0.5">
                     <Star size={10} className="fill-amber-400 text-amber-400" />
                     <span className="font-bold text-slate-700">{avgRating}</span>
-                    <span className="text-slate-400">({reviewsList.length})</span>
+                    <span className="text-slate-400">({approvedReviewSummary.count})</span>
                   </div>
                 </div>
 
@@ -3292,6 +3427,36 @@ export function ProductsList({
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label htmlFor="review-modal-date" className="text-xs font-medium text-slate-700">
+                      Review Date
+                    </label>
+                    <input
+                      id="review-modal-date"
+                      type="date"
+                      value={reviewDate}
+                      max={todayIsoDate()}
+                      onChange={(e) => setReviewDate(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-slate-400"
+                    />
+                    {!reviewDate && editingReviewId && (
+                      <p className="text-[10.5px] text-slate-400">
+                        Currently "{reviewsList.find((r) => r.id === editingReviewId)?.date || "—"}" — pick a date to change it.
+                      </p>
+                    )}
+                  </div>
+                  <label className="flex items-center gap-2 pt-6 text-xs font-medium text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={reviewVerified}
+                      onChange={(e) => setReviewVerified(e.target.checked)}
+                      className="h-3.5 w-3.5 accent-slate-900"
+                    />
+                    Verified Buyer badge
+                  </label>
+                </div>
+
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-slate-700">Review Text</label>
                   <textarea
@@ -3389,10 +3554,11 @@ export function ProductsList({
                 </button>
                 <button
                   type="button"
-                  onClick={handleSaveCustomReview}
-                  className="px-4 py-1.5 rounded-xl text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white shadow-2xs cursor-pointer"
+                  onClick={() => void handleSaveCustomReview()}
+                  disabled={reviewBusyId !== null}
+                  className="px-4 py-1.5 rounded-xl text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-wait"
                 >
-                  Save Review
+                  {reviewBusyId !== null ? "Saving…" : "Save Review"}
                 </button>
               </div>
             </div>

@@ -44,8 +44,10 @@ import {
   type Product,
   formatProductForStorefront,
   fetchProductById,
-} from "@/components/store/data";
-import { ProductCard } from "@/components/store/ProductCard";
+  summarizeReviews,
+  reviewStars,
+  formatReviewDate,
+} from "@/components/store/data";import { ProductCard } from "@/components/store/ProductCard";
 import { useCart } from "@/hooks/use-cart";
 
 function ProductRouteErrorFallback({ reset }: { error: Error; reset: () => void }) {
@@ -333,6 +335,16 @@ function ProductDetailPage() {
     }
   };
 
+  // Rating header + star breakdown, computed from the reviews the admin saved.
+  const reviewSummary = summarizeReviews(product.customerReviews);
+  const reviewBarColors: Record<number, string> = {
+    5: "bg-[#0f766e]",
+    4: "bg-emerald-600",
+    3: "bg-amber-400",
+    2: "bg-stone-300 dark:bg-stone-700",
+    1: "bg-stone-300 dark:bg-stone-700",
+  };
+
   const relatedProducts = allStoreProducts
     .filter((item) => item.id !== product.id)
     .slice(0, 5);
@@ -455,16 +467,16 @@ function ProductDetailPage() {
 
               {/* Minimal Floating Thumbnail Strip */}
               {galleryImages.length > 1 && (
-                <div className="flex items-center gap-2.5 pt-0.5 overflow-x-auto scrollbar-none">
+                <div className="flex items-center gap-2.5 p-1 overflow-x-auto scrollbar-none">
                   {galleryImages.map((img, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => setActiveImageIndex(idx)}
-                      className={`relative h-15 w-15 rounded-2xl overflow-hidden border-2 transition-all duration-200 cursor-pointer shrink-0 bg-slate-50/80 dark:bg-white/5 backdrop-blur-md p-1 ${
+                      className={`relative h-15 w-15 rounded-xl overflow-hidden border-2 transition-all duration-200 cursor-pointer shrink-0 bg-white dark:bg-white/5 p-1 ${
                         activeImageIndex === idx
-                          ? "border-slate-900 dark:border-white ring-2 ring-slate-900/20 dark:ring-white/20 shadow-xs scale-105"
-                          : "border-slate-200/60 dark:border-white/10 opacity-60 hover:opacity-100 hover:border-slate-300"
+                          ? "border-[#B0CB1F] shadow-sm"
+                          : "border-slate-200/70 dark:border-white/10 opacity-60 hover:opacity-100 hover:border-slate-300"
                       }`}
                     >
                       <img
@@ -772,48 +784,32 @@ function ProductDetailPage() {
                     <div className="text-5xl font-black text-foreground">{Number(product.rating || 5).toFixed(1)}</div>
                     <div className="flex justify-center text-amber-400">
                       {[...Array(5)].map((_, i) => (
-                        <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
+                        <Star
+                          key={i}
+                          className={`h-4 w-4 ${
+                            i < Math.round(Number(product.rating || 5))
+                              ? "fill-amber-400 text-amber-400"
+                              : "text-stone-300 dark:text-stone-700"
+                          }`}
+                        />
                       ))}
                     </div>
-                    <div className="text-xs text-muted-foreground">out of 5 ({Number(product.reviews || 0)} Reviews)</div>
+                    <div className="text-xs text-muted-foreground">out of 5 ({reviewSummary.count} Reviews)</div>
                   </div>
 
                   <div className="col-span-8 space-y-1.5 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-3">
-                      <span className="w-10 font-medium">5 ★</span>
-                      <div className="flex-1 bg-secondary rounded-full h-2 overflow-hidden">
-                        <div className="bg-[#0f766e] h-full rounded-full" style={{ width: "88%" }} />
+                    {reviewSummary.breakdown.map((row) => (
+                      <div key={row.stars} className="flex items-center gap-3">
+                        <span className="w-10 font-medium">{row.stars} ★</span>
+                        <div className="flex-1 bg-secondary rounded-full h-2 overflow-hidden">
+                          <div
+                            className={`${reviewBarColors[row.stars]} h-full rounded-full`}
+                            style={{ width: `${row.percent}%` }}
+                          />
+                        </div>
+                        <span className="w-8 text-right font-medium">{row.count}</span>
                       </div>
-                      <span className="w-8 text-right font-medium">183</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="w-10 font-medium">4 ★</span>
-                      <div className="flex-1 bg-secondary rounded-full h-2 overflow-hidden">
-                        <div className="bg-emerald-600 h-full rounded-full" style={{ width: "25%" }} />
-                      </div>
-                      <span className="w-8 text-right font-medium">52</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="w-10 font-medium">3 ★</span>
-                      <div className="flex-1 bg-secondary rounded-full h-2 overflow-hidden">
-                        <div className="bg-amber-400 h-full rounded-full" style={{ width: "8%" }} />
-                      </div>
-                      <span className="w-8 text-right font-medium">15</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="w-10 font-medium">2 ★</span>
-                      <div className="flex-1 bg-secondary rounded-full h-2 overflow-hidden">
-                        <div className="bg-stone-300 dark:bg-stone-700 h-full rounded-full" style={{ width: "2%" }} />
-                      </div>
-                      <span className="w-8 text-right font-medium">4</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="w-10 font-medium">1 ★</span>
-                      <div className="flex-1 bg-secondary rounded-full h-2 overflow-hidden">
-                        <div className="bg-stone-300 dark:bg-stone-700 h-full rounded-full" style={{ width: "1%" }} />
-                      </div>
-                      <span className="w-8 text-right font-medium">2</span>
-                    </div>
+                    ))}
                   </div>
                 </div>
 
@@ -850,14 +846,14 @@ function ProductDetailPage() {
                               )}
                             </div>
                           </div>
-                          <span className="text-[11px] text-muted-foreground">{rev.date}</span>
+                          <span className="text-[11px] text-muted-foreground">{formatReviewDate(rev.date)}</span>
                         </div>
                         <div className="flex text-amber-400">
                           {[...Array(5)].map((_, i) => (
                             <Star
                               key={i}
                               className={`h-3.5 w-3.5 ${
-                                i < (rev.rating || 5)
+                                i < reviewStars(rev)
                                   ? "fill-amber-400 text-amber-400"
                                   : "text-stone-300 dark:text-stone-700"
                               }`}
@@ -865,11 +861,31 @@ function ProductDetailPage() {
                           ))}
                         </div>
                         <p className="text-xs leading-relaxed text-muted-foreground">{rev.comment}</p>
+                        {Array.isArray(rev.images) && rev.images.length > 0 && (
+                          <div className="flex items-center gap-2 pt-1 overflow-x-auto">
+                            {rev.images.map((imgUrl, imgIdx) => (
+                              <a
+                                key={imgIdx}
+                                href={imgUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="h-16 w-16 rounded-lg overflow-hidden border border-border shrink-0"
+                              >
+                                <img
+                                  src={imgUrl}
+                                  alt={`Photo from ${rev.author || "customer"} ${imgIdx + 1}`}
+                                  className="h-full w-full object-cover"
+                                  loading="lazy"
+                                />
+                              </a>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))
                   ) : (
                     <div className="py-8 text-center text-xs text-muted-foreground bg-slate-50/60 dark:bg-white/5 rounded-2xl border border-dashed border-border p-6">
-                      No customer reviews yet. Verified purchases will appear here.
+                      No reviews yet. Bought it? Review it from My Orders.
                     </div>
                   )}
                 </div>
@@ -1068,9 +1084,9 @@ function ProductDetailPage() {
                     key={idx}
                     type="button"
                     onClick={() => setActiveImageIndex(idx)}
-                    className={`relative h-15 w-15 rounded-2xl overflow-hidden border transition-all duration-200 cursor-pointer shrink-0 bg-[#f8f7f4] dark:bg-neutral-800 p-1 ${
+                    className={`relative h-15 w-15 rounded-xl overflow-hidden border-2 transition-all duration-200 cursor-pointer shrink-0 bg-[#f8f7f4] dark:bg-neutral-800 p-1 ${
                       activeImageIndex === idx
-                        ? "border-neutral-950 dark:border-white ring-2 ring-neutral-950/20 dark:ring-white/20 shadow-xs scale-105"
+                        ? "border-[#B0CB1F] shadow-sm"
                         : "border-black/[0.08] dark:border-white/10 opacity-70 hover:opacity-100"
                     }`}
                   >
@@ -1369,34 +1385,32 @@ function ProductDetailPage() {
                       </div>
                       <div className="flex text-amber-400 justify-center">
                         {[...Array(5)].map((_, i) => (
-                          <Star key={i} className="h-3 w-3 fill-amber-400 text-amber-400" />
+                          <Star
+                            key={i}
+                            className={`h-3 w-3 ${
+                              i < Math.round(Number(product.rating || 5))
+                                ? "fill-amber-400 text-amber-400"
+                                : "text-neutral-300 dark:text-neutral-700"
+                            }`}
+                          />
                         ))}
                       </div>
-                      <div className="text-[10px] text-muted-foreground">{Number(product.reviews || 0)} Reviews</div>
+                      <div className="text-[10px] text-muted-foreground">{reviewSummary.count} Reviews</div>
                     </div>
 
                     <div className="flex-1 space-y-1 text-[10px] text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <span>5★</span>
-                        <div className="flex-1 bg-black/10 dark:bg-white/10 rounded-full h-1.5 overflow-hidden">
-                          <div className="bg-[#15803d] h-full rounded-full" style={{ width: "88%" }} />
+                      {reviewSummary.breakdown.map((row) => (
+                        <div key={row.stars} className="flex items-center gap-2">
+                          <span>{row.stars}★</span>
+                          <div className="flex-1 bg-black/10 dark:bg-white/10 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className={`${reviewBarColors[row.stars]} h-full rounded-full`}
+                              style={{ width: `${row.percent}%` }}
+                            />
+                          </div>
+                          <span className="w-7 text-right">{row.percent}%</span>
                         </div>
-                        <span className="w-6 text-right">88%</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span>4★</span>
-                        <div className="flex-1 bg-black/10 dark:bg-white/10 rounded-full h-1.5 overflow-hidden">
-                          <div className="bg-emerald-500 h-full rounded-full" style={{ width: "10%" }} />
-                        </div>
-                        <span className="w-6 text-right">10%</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span>3★</span>
-                        <div className="flex-1 bg-black/10 dark:bg-white/10 rounded-full h-1.5 overflow-hidden">
-                          <div className="bg-amber-400 h-full rounded-full" style={{ width: "2%" }} />
-                        </div>
-                        <span className="w-6 text-right">2%</span>
-                      </div>
+                      ))}
                     </div>
                   </div>
 
@@ -1407,9 +1421,17 @@ function ProductDetailPage() {
                         <div key={rev.id} className="pt-3 space-y-1.5 first:pt-0">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <div className="h-7 w-7 rounded-full bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 flex items-center justify-center font-bold text-[10px]">
-                                {String(rev.author || "Customer").slice(0, 2).toUpperCase()}
-                              </div>
+                              {rev.userPhoto ? (
+                                <img
+                                  src={rev.userPhoto}
+                                  alt={rev.author}
+                                  className="h-7 w-7 rounded-full object-cover border border-black/[0.06] dark:border-white/10"
+                                />
+                              ) : (
+                                <div className="h-7 w-7 rounded-full bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 flex items-center justify-center font-bold text-[10px]">
+                                  {String(rev.author || "Customer").slice(0, 2).toUpperCase()}
+                                </div>
+                              )}
                               <div>
                                 <div className="font-bold text-xs text-neutral-950 dark:text-white leading-tight">
                                   {rev.author || "Customer"}
@@ -1421,7 +1443,7 @@ function ProductDetailPage() {
                                 )}
                               </div>
                             </div>
-                            <span className="text-[10px] text-muted-foreground">{rev.date}</span>
+                            <span className="text-[10px] text-muted-foreground">{formatReviewDate(rev.date)}</span>
                           </div>
 
                           <div className="flex text-amber-400">
@@ -1429,7 +1451,7 @@ function ProductDetailPage() {
                               <Star
                                 key={i}
                                 className={`h-3 w-3 ${
-                                  i < (rev.rating || 5)
+                                  i < reviewStars(rev)
                                     ? "fill-amber-400 text-amber-400"
                                     : "text-neutral-300 dark:text-neutral-700"
                                 }`}
@@ -1440,11 +1462,32 @@ function ProductDetailPage() {
                           <p className="text-[11.5px] text-neutral-600 dark:text-neutral-300 leading-relaxed">
                             {rev.comment}
                           </p>
+
+                          {Array.isArray(rev.images) && rev.images.length > 0 && (
+                            <div className="flex items-center gap-1.5 pt-0.5 overflow-x-auto">
+                              {rev.images.map((imgUrl, imgIdx) => (
+                                <a
+                                  key={imgIdx}
+                                  href={imgUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="h-14 w-14 rounded-lg overflow-hidden border border-black/[0.06] dark:border-white/10 shrink-0"
+                                >
+                                  <img
+                                    src={imgUrl}
+                                    alt={`Photo from ${rev.author || "customer"} ${imgIdx + 1}`}
+                                    className="h-full w-full object-cover"
+                                    loading="lazy"
+                                  />
+                                </a>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))
                     ) : (
                       <div className="py-6 text-center text-xs text-muted-foreground">
-                        No reviews yet. Verified purchases will appear here.
+                        No reviews yet. Bought it? Review it from My Orders.
                       </div>
                     )}
                   </div>

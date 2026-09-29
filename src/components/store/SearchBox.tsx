@@ -240,36 +240,36 @@ export function SearchBox({ variant, placeholder }: SearchBoxProps) {
   ) : null;
 
   return (
-    <div ref={wrapperRef} className={isDesktop ? "relative max-w-xl flex-1" : "relative"}>
+    <div ref={wrapperRef} className={isDesktop ? "relative min-w-0 flex-1 max-w-3xl xl:max-w-4xl" : "relative"}>
       {isDesktop ? (
         <form
           onSubmit={handleSubmit}
           role="search"
-          className="flex items-center rounded-full border border-input/80 bg-secondary/60 backdrop-blur-md pl-4 pr-1.5 py-1.5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-neutral-400 focus-within:bg-surface focus-within:ring-2 focus-within:ring-neutral-400/10 transition-all"
+          className="flex items-center rounded-lg border-2 border-[#B0CB1F] bg-surface pl-3 pr-2 py-2 focus-within:ring-2 focus-within:ring-[#B0CB1F]/25 transition-all"
         >
-          <input
-            {...inputProps}
-            className="w-full bg-transparent text-xs sm:text-[13px] text-foreground outline-none placeholder:text-muted-foreground font-medium [&::-webkit-search-cancel-button]:hidden"
-          />
-          {clearButton}
           <button
             type="submit"
             aria-label="Search"
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-neutral-900 text-white hover:bg-neutral-800 shadow-[0_2px_8px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.2)] active:scale-95 transition-all cursor-pointer"
+            className="grid h-6 w-6 shrink-0 place-items-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
-            <Search className="h-3.5 w-3.5 stroke-[2.2]" />
+            <Search className="h-4.5 w-4.5 stroke-[1.8]" />
           </button>
+          <input
+            {...inputProps}
+            className="w-full bg-transparent px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
+          />
+          {clearButton}
         </form>
       ) : (
         <form
           onSubmit={handleSubmit}
           role="search"
-          className="relative flex items-center rounded-xl border border-black/[0.08] dark:border-white/15 bg-neutral-100/90 dark:bg-neutral-800/70 px-3.5 py-2 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-neutral-900 dark:focus-within:border-white focus-within:bg-surface transition-all"
+          className="relative flex items-center rounded-lg border-2 border-[#B0CB1F] bg-surface px-3 py-2 focus-within:ring-2 focus-within:ring-[#B0CB1F]/25 transition-all"
         >
-          <Search className="h-4 w-4 text-muted-foreground shrink-0 stroke-[2.2]" />
+          <Search className="h-4 w-4 text-muted-foreground shrink-0 stroke-[1.8]" />
           <input
             {...inputProps}
-            className="min-w-0 flex-1 bg-transparent px-2.5 text-[13px] text-foreground outline-none placeholder:text-muted-foreground font-medium [&::-webkit-search-cancel-button]:hidden"
+            className="min-w-0 flex-1 bg-transparent px-2.5 text-[13px] text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
           />
           {clearButton}
         </form>

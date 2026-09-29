@@ -21,7 +21,7 @@ import {
   Banknote,
 } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
-import { useStoreProducts, type Product } from "./data";
+import { useStoreProducts, reviewStars, type Product } from "./data";
 
 export function ProductDetailModal() {
   const {
@@ -525,7 +525,10 @@ export function ProductDetailModal() {
                 <div>
                   <div className="flex items-center text-amber-400">
                     {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="h-3.5 w-3.5 fill-amber-400" />
+                      <Star
+                        key={i}
+                        className={`h-3.5 w-3.5 ${i < Math.round(Number(p.rating || 5)) ? "fill-amber-400" : "text-stone-300 dark:text-stone-700"}`}
+                      />
                     ))}
                   </div>
                   <span className="text-[11px] text-stone-400">
@@ -551,12 +554,28 @@ export function ProductDetailModal() {
                       </div>
                       <div className="flex text-amber-400">
                         {[...Array(5)].map((_, i) => (
-                          <Star key={i} className="h-3 w-3 fill-amber-400" />
+                          <Star
+                            key={i}
+                            className={`h-3 w-3 ${i < reviewStars(rev) ? "fill-amber-400" : "text-stone-300 dark:text-stone-700"}`}
+                          />
                         ))}
                       </div>
                       <p className="text-[11.5px] text-stone-600 dark:text-stone-300 leading-relaxed">
                         "{rev.comment}"
                       </p>
+                      {Array.isArray(rev.images) && rev.images.length > 0 && (
+                        <div className="flex items-center gap-1.5 pt-1 overflow-x-auto">
+                          {rev.images.map((imgUrl, imgIdx) => (
+                            <img
+                              key={imgIdx}
+                              src={imgUrl}
+                              alt={`Photo from ${rev.author || "customer"} ${imgIdx + 1}`}
+                              className="h-12 w-12 rounded-lg object-cover border border-stone-200 dark:border-stone-800 shrink-0"
+                              loading="lazy"
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (
