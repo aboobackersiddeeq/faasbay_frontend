@@ -316,7 +316,7 @@ export function AutoSlidingSpotlight() {
             else endDrag(e);
           }}
           onClickCapture={onClickCapture}
-          className={`relative flex gap-3 lg:gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-none -mx-4 px-4 scroll-px-4 sm:mx-0 sm:px-0 sm:scroll-px-0 md:cursor-grab ${isDragging ? "md:cursor-grabbing [&_*]:!cursor-grabbing" : ""}`}
+          className={`relative flex gap-4 md:gap-3 lg:gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-none -mx-4 px-4 scroll-px-4 sm:mx-0 sm:px-0 sm:scroll-px-0 md:cursor-grab ${isDragging ? "md:cursor-grabbing [&_*]:!cursor-grabbing" : ""}`}
         >
           {items.map((card, itemIdx) => {
             const idx = itemIdx % n;
@@ -330,57 +330,62 @@ export function AutoSlidingSpotlight() {
                 draggable={false}
                 aria-hidden={isClone || undefined}
                 tabIndex={isClone ? -1 : undefined}
-                className={`group relative block shrink-0 snap-start overflow-hidden rounded-2xl basis-[86%] sm:basis-[62%] md:basis-[calc((100%_-_0.75rem)/2)] lg:basis-[calc((100%_-_2rem)/3)] aspect-[2.05/1] lg:aspect-[1.85/1] bg-gradient-to-br ${theme.bg} ${BANNER_DARK_BG} cursor-pointer`}
+                className={`group relative block shrink-0 snap-start overflow-hidden rounded-2xl basis-[86%] sm:basis-[62%] md:basis-[calc((100%_-_0.75rem)/2)] lg:basis-[calc((100%_-_2rem)/3)] aspect-[1.9/1] md:aspect-[2.05/1] lg:aspect-[1.85/1] bg-gradient-to-br ${theme.bg} ${BANNER_DARK_BG} cursor-pointer`}
               >
                 {/* Ambient light */}
                 <div className="pointer-events-none absolute -top-1/2 right-[5%] h-[140%] aspect-square rounded-full bg-white/45 dark:bg-white/[0.04] blur-3xl" />
 
-                <div className="absolute inset-0 grid grid-cols-[1.2fr_1fr] items-center gap-2 px-5 lg:px-5 xl:px-6 py-4">
-                  {/* Copy */}
-                  <div className="z-10 min-w-0 space-y-1.5 lg:space-y-2">
-                    {card.tagRibbon && (
-                      <span
-                        className={`inline-block rounded-full bg-white/75 dark:bg-white/10 backdrop-blur-sm px-2.5 py-0.5 text-[9px] lg:text-[10px] font-bold uppercase tracking-[0.2em] ${theme.title} dark:text-white`}
+                <div className="absolute inset-0 flex items-stretch gap-3 p-4 sm:p-5 xl:p-6">
+                  {/* Copy — one compact stack, vertically centred */}
+                  <div className="z-10 flex min-w-0 flex-1 flex-col justify-center">
+                    <div className="space-y-1.5 lg:space-y-2">
+                      {card.tagRibbon && (
+                        <div>
+                          <span
+                            className={`inline-flex h-[18px] lg:h-5 items-center rounded-full bg-white/75 dark:bg-white/10 backdrop-blur-sm px-2.5 text-[9px] lg:text-[10px] font-bold uppercase tracking-[0.2em] ${theme.title} dark:text-white`}
+                          >
+                            {card.tagRibbon}
+                          </span>
+                        </div>
+                      )}
+                      <h3
+                        className={`font-display uppercase font-extrabold tracking-[0.04em] leading-[1.08] text-[15px] sm:text-lg lg:text-base xl:text-lg line-clamp-2 ${theme.title} dark:text-white`}
                       >
-                        {card.tagRibbon}
-                      </span>
-                    )}
-                    <h3
-                      className={`font-display uppercase font-extrabold tracking-[0.05em] leading-[1.05] text-base sm:text-lg lg:text-[1.05rem] xl:text-xl line-clamp-2 ${theme.title} dark:text-white`}
-                    >
-                      {card.badgeTitle}
-                    </h3>
-                    <p
-                      className={`text-[10px] lg:text-[11px] uppercase tracking-[0.14em] leading-snug line-clamp-2 ${theme.body} dark:text-slate-400`}
-                    >
-                      {card.subtitle}
-                    </p>
-                    <div className="pt-1 lg:pt-2 flex items-center gap-3">
-                      <span
-                        className={`font-display text-sm lg:text-lg font-bold ${theme.title} dark:text-white`}
+                        {card.badgeTitle}
+                      </h3>
+                      <p
+                        className={`line-clamp-2 leading-snug text-[10px] lg:text-[11px] uppercase tracking-[0.12em] ${theme.body} dark:text-slate-400`}
                       >
-                        {card.price}
-                      </span>
-                      <span
-                        className={`inline-flex items-center gap-1 text-[10px] lg:text-[11px] font-bold uppercase tracking-[0.16em] ${theme.body} dark:text-slate-300`}
-                      >
-                        Shop
-                        <ArrowRight className="h-3 w-3 transition-transform duration-300 group-hover:translate-x-1" />
-                      </span>
+                        {card.subtitle}
+                      </p>
+                      <div className="pt-1 lg:pt-2 flex items-center gap-3">
+                        <span
+                          className={`font-display text-sm sm:text-base xl:text-lg font-bold ${theme.title} dark:text-white`}
+                        >
+                          {card.price}
+                        </span>
+                        <span
+                          className={`inline-flex items-center gap-1 text-[10px] lg:text-[11px] font-bold uppercase tracking-[0.16em] ${theme.body} dark:text-slate-300`}
+                        >
+                          Shop
+                          <ArrowRight className="h-3 w-3 transition-transform duration-300 group-hover:translate-x-1" />
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Product */}
-                  <div className="relative h-full min-h-0 flex items-center justify-center">
-                    {/* <div className="absolute aspect-square h-[78%] rounded-full bg-white/55 dark:bg-white/[0.06]" /> */}
-                    <div className="absolute bottom-[9%] h-[7%] w-[55%] rounded-[50%] bg-black/10 dark:bg-black/30 blur-md" />
-                    <img
-                      src={card.image}
-                      alt={card.subtitle}
-                      draggable={false}
-                      loading="lazy"
-                      className="relative z-10 h-[80%] w-auto max-w-full object-contain mix-blend-multiply dark:mix-blend-normal drop-shadow-[0_14px_16px_rgba(15,23,42,0.16)] transition-transform duration-700 ease-out group-hover:scale-[1.06] group-hover:-rotate-2"
-                    />
+                  {/* Product — same fixed box on every card */}
+                  <div className="relative w-[40%] shrink-0 flex items-center justify-center">
+                    <div className="absolute bottom-[6%] h-[7%] w-[60%] rounded-[50%] bg-black/10 dark:bg-black/30 blur-md" />
+                    <div className="relative h-[82%] w-full">
+                      <img
+                        src={card.image}
+                        alt={card.subtitle}
+                        draggable={false}
+                        loading="lazy"
+                        className="absolute inset-0 h-full w-full object-contain mix-blend-multiply dark:mix-blend-normal drop-shadow-[0_12px_14px_rgba(15,23,42,0.16)] transition-transform duration-700 ease-out group-hover:scale-[1.06] group-hover:-rotate-2"
+                      />
+                    </div>
                   </div>
                 </div>
               </a>
