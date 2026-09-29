@@ -1,379 +1,419 @@
 // ============================================================================
-// FaasBay Commerce — Auto-Sliding 3-Column Spotlight Banners (Apple Minimal)
-// Ultra-smooth synchronized & staggered carousel across all 3 banner cards
+// FaasBay Commerce — Spotlight Banner Strip (Premium Minimal)
+// One horizontal strip of pastel cards: the next card peeks in from the edge,
+// it auto-advances one card at a time, and is swipe/trackpad scrollable.
 // ============================================================================
-import React, { useState, useEffect } from "react";
-import { useCart } from "@/hooks/use-cart";
-import { useStoreProducts } from "./data";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { ArrowRight } from "lucide-react";
 import { useStorefrontCms } from "@/lib/storefront-cms";
+import {
+  BANNER_THEMES,
+  BANNER_DARK_BG,
+  DEFAULT_BANNER_LINK,
+  useBannerClick,
+} from "@/components/store/banner-shared";
 
-export interface PromoCardSlide {
+export interface SpotlightCard {
   id: string;
-  productId?: string;
   badgeTitle: string;
   subtitle: string;
   price: string;
   image: string;
-  imageAlt: string;
   tagRibbon?: string;
-  circleColor: string;
-  cardBg: string;
-  textColor: string;
-  priceColor: string;
-  activeDotColor: string;
+  link: string;
 }
 
-export interface PromoColumn {
-  id: string;
-  slides: PromoCardSlide[];
-}
+const AUTOPLAY_MS = 3500;
+// Start further along the palette than the hero so the two sections don't open on the same colours
+const THEME_OFFSET = 4;
 
-const DEFAULT_COLUMNS: PromoColumn[] = [
-  // ── Column 1: Audio & Earbuds
+const DEFAULT_CARDS: SpotlightCard[] = [
   {
-    id: "col-1",
-    slides: [
-      {
-        id: "c1-s1",
-        productId: "p1",
-        badgeTitle: "ANY DAY OFFERS",
-        subtitle: "STUDIO ACOUSTICS 40MM TITANIUM",
-        price: "₹3,499",
-        image: "/assets/banners/headphones.png",
-        imageAlt: "Studio ANC Wireless Headphones",
-        tagRibbon: "NEW",
-        circleColor: "bg-amber-100 dark:bg-amber-950/40",
-        cardBg: "bg-white dark:bg-[#161822] border border-black/[0.07] dark:border-white/10",
-        textColor: "text-neutral-900 dark:text-white",
-        priceColor: "text-[#1e293b] dark:text-amber-400",
-        activeDotColor: "bg-amber-500",
-      },
-      {
-        id: "c1-s2",
-        productId: "p5",
-        badgeTitle: "SPATIAL AUDIO",
-        subtitle: "LOSSLESS LDAC WIRELESS EARBUDS",
-        price: "₹2,299",
-        image: "/assets/banners/earbuds.png",
-        imageAlt: "Spatial Audio True Wireless ANC Earbuds",
-        tagRibbon: "30% OFF",
-        circleColor: "bg-emerald-100 dark:bg-emerald-950/40",
-        cardBg: "bg-white dark:bg-[#161822] border border-black/[0.07] dark:border-white/10",
-        textColor: "text-neutral-900 dark:text-white",
-        priceColor: "text-[#1e293b] dark:text-emerald-400",
-        activeDotColor: "bg-emerald-500",
-      },
-      {
-        id: "c1-s3",
-        productId: "p6",
-        badgeTitle: "BOOM SOUND",
-        subtitle: "PORTABLE BASS 360 SPEAKER",
-        price: "₹2,890",
-        image: "/assets/banners/speaker.png",
-        imageAlt: "Rugged Studio Bluetooth Speaker",
-        tagRibbon: "HOT",
-        circleColor: "bg-slate-200/80 dark:bg-slate-800",
-        cardBg: "bg-white dark:bg-[#161822] border border-black/[0.07] dark:border-white/10",
-        textColor: "text-neutral-900 dark:text-white",
-        priceColor: "text-[#1e293b] dark:text-slate-300",
-        activeDotColor: "bg-slate-700 dark:bg-white",
-      },
-    ],
+    id: "d1",
+    badgeTitle: "Any Day Offers",
+    subtitle: "Studio acoustics 40mm titanium",
+    price: "₹3,499",
+    image: "/assets/banners/headphones.png",
+    tagRibbon: "New",
+    link: "/product/p1",
   },
-
-  // ── Column 2: Titanium Wearables & Docks
   {
-    id: "col-2",
-    slides: [
-      {
-        id: "c2-s1",
-        productId: "p2",
-        badgeTitle: "TITANIUM PRO",
-        subtitle: "SAPPHIRE CRYSTAL AMOLED WATCH",
-        price: "₹4,299",
-        image: "/assets/banners/watch.png",
-        imageAlt: "Titanium Ultra Smartwatch",
-        tagRibbon: "PRO",
-        circleColor: "bg-white/20",
-        cardBg: "bg-gradient-to-br from-[#1e293b] via-[#243347] to-[#0f172a] text-white border border-white/10",
-        textColor: "text-white",
-        priceColor: "text-amber-300",
-        activeDotColor: "bg-amber-400",
-      },
-      {
-        id: "c2-s2",
-        productId: "p4",
-        badgeTitle: "MAGSAFE DOCK",
-        subtitle: "15W FAST WIRELESS 3-IN-1",
-        price: "₹1,890",
-        image: "/assets/banners/dock.png",
-        imageAlt: "MagSafe 3-in-1 Fast Wireless Stand",
-        tagRibbon: "POPULAR",
-        circleColor: "bg-white/20",
-        cardBg: "bg-gradient-to-br from-[#1e293b] via-[#243347] to-[#0f172a] text-white border border-white/10",
-        textColor: "text-white",
-        priceColor: "text-emerald-300",
-        activeDotColor: "bg-emerald-400",
-      },
-      {
-        id: "c2-s3",
-        productId: "p7",
-        badgeTitle: "SMART TRACK",
-        subtitle: "TITANIUM BIO-METRIC SMART RING",
-        price: "₹3,190",
-        image: "/assets/banners/watch.png",
-        imageAlt: "Titanium Smart Bio-Tracker",
-        tagRibbon: "NEW",
-        circleColor: "bg-white/20",
-        cardBg: "bg-gradient-to-br from-[#1e293b] via-[#243347] to-[#0f172a] text-white border border-white/10",
-        textColor: "text-white",
-        priceColor: "text-white",
-        activeDotColor: "bg-white",
-      },
-    ],
+    id: "d2",
+    badgeTitle: "Titanium Pro",
+    subtitle: "Sapphire crystal AMOLED watch",
+    price: "₹4,299",
+    image: "/assets/banners/watch.png",
+    tagRibbon: "Pro",
+    link: "/product/p2",
   },
-
-  // ── Column 3: Studio Keyboard & Workspace
   {
-    id: "col-3",
-    slides: [
-      {
-        id: "c3-s1",
-        productId: "p3",
-        badgeTitle: "STUDIO KEYBOARD",
-        subtitle: "CNC HOT-SWAP 75% GATERON YELLOW",
-        price: "₹3,890",
-        image: "/assets/banners/keyboard.png",
-        imageAlt: "Wireless Mechanical Keyboard",
-        tagRibbon: "HOT",
-        circleColor: "bg-slate-100 dark:bg-slate-800",
-        cardBg: "bg-white dark:bg-[#161822] border border-black/[0.07] dark:border-white/10",
-        textColor: "text-neutral-900 dark:text-white",
-        priceColor: "text-[#1e293b] dark:text-white",
-        activeDotColor: "bg-neutral-900 dark:bg-white",
-      },
-      {
-        id: "c3-s2",
-        productId: "p9",
-        badgeTitle: "ERGONOMIC DESK",
-        subtitle: "PRECISION SILENT WIRELESS MOUSE",
-        price: "₹1,499",
-        image: "/assets/banners/mouse.png",
-        imageAlt: "Precision Ergonomic Studio Mouse",
-        tagRibbon: "NEW",
-        circleColor: "bg-indigo-50 dark:bg-indigo-950/40",
-        cardBg: "bg-white dark:bg-[#161822] border border-black/[0.07] dark:border-white/10",
-        textColor: "text-neutral-900 dark:text-white",
-        priceColor: "text-[#1e293b] dark:text-indigo-400",
-        activeDotColor: "bg-indigo-600",
-      },
-      {
-        id: "c3-s3",
-        badgeTitle: "FAASBAY DIRECT",
-        subtitle: "EXPRESS WAREHOUSE AIR DISPATCH",
-        price: "FREE SHIPPING",
-        image: "/assets/banners/earbuds.png",
-        imageAlt: "FaasBay Official Direct Store",
-        tagRibbon: "24H",
-        circleColor: "bg-emerald-50 dark:bg-emerald-950/40",
-        cardBg: "bg-white dark:bg-[#161822] border border-black/[0.07] dark:border-white/10",
-        textColor: "text-neutral-900 dark:text-white",
-        priceColor: "text-[#15803d] dark:text-emerald-400",
-        activeDotColor: "bg-emerald-600",
-      },
-    ],
+    id: "d3",
+    badgeTitle: "Studio Keyboard",
+    subtitle: "CNC hot-swap 75% Gateron yellow",
+    price: "₹3,890",
+    image: "/assets/banners/keyboard.png",
+    tagRibbon: "Hot",
+    link: "/product/p3",
+  },
+  {
+    id: "d4",
+    badgeTitle: "Spatial Audio",
+    subtitle: "Lossless LDAC wireless earbuds",
+    price: "₹2,299",
+    image: "/assets/banners/earbuds.png",
+    tagRibbon: "30% Off",
+    link: "/product/p5",
+  },
+  {
+    id: "d5",
+    badgeTitle: "MagSafe Dock",
+    subtitle: "15W fast wireless 3-in-1",
+    price: "₹1,890",
+    image: "/assets/banners/dock.png",
+    tagRibbon: "Popular",
+    link: "/product/p4",
+  },
+  {
+    id: "d6",
+    badgeTitle: "Ergonomic Desk",
+    subtitle: "Precision silent wireless mouse",
+    price: "₹1,499",
+    image: "/assets/banners/mouse.png",
+    tagRibbon: "New",
+    link: "/product/p9",
+  },
+  {
+    id: "d7",
+    badgeTitle: "Boom Sound",
+    subtitle: "Portable bass 360 speaker",
+    price: "₹2,890",
+    image: "/assets/banners/speaker.png",
+    tagRibbon: "Hot",
+    link: "/product/p6",
+  },
+  {
+    id: "d8",
+    badgeTitle: "Smart Track",
+    subtitle: "Titanium bio-metric smart ring",
+    price: "₹3,190",
+    image: "/assets/banners/watch.png",
+    tagRibbon: "New",
+    link: "/product/p7",
+  },
+  {
+    id: "d9",
+    badgeTitle: "FaasBay Direct",
+    subtitle: "Express warehouse air dispatch",
+    price: "Free Shipping",
+    image: "/assets/banners/earbuds.png",
+    tagRibbon: "24H",
+    link: DEFAULT_BANNER_LINK,
   },
 ];
 
+const COLUMN_IDS = ["col-1", "col-2", "col-3"] as const;
+
 export function AutoSlidingSpotlight() {
   const { spotlightSlides } = useStorefrontCms();
-  const storeProducts = useStoreProducts();
-  const { openProductDetail } = useCart();
-  const [activeIndices, setActiveIndices] = useState<number[]>([0, 0, 0]);
+  const handleBannerClick = useBannerClick();
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const offsetsRef = useRef<number[]>([]);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchingRef = useRef(false);
+  const dragRef = useRef<{ x: number; left: number; startItem: number; moved: boolean } | null>(
+    null,
+  );
+  const suppressClick = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [active, setActive] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const activeRef = useRef(0);
+  activeRef.current = active;
 
-  // Group dynamic CMS slides by column with reliable multi-slide fallback
-  const promoColumns: PromoColumn[] = React.useMemo(() => {
-    return ["col-1", "col-2", "col-3"].map((colId, colIdx) => {
-      const cmsSlides = (spotlightSlides || []).filter((s) => s.columnId === colId);
-
-      if (cmsSlides.length > 0) {
-        const mappedSlides = cmsSlides.map((s, sIdx) => ({
-          id: s.id || `cms-${colId}-${sIdx}`,
+  // Admin still groups slides into 3 columns; interleave them (1st of each column, then 2nd…)
+  // so the strip opens with the same variety the old 3-column layout showed.
+  const cards: SpotlightCard[] = useMemo(() => {
+    const columns = COLUMN_IDS.map((colId) =>
+      (spotlightSlides || []).filter((s) => s.columnId === colId),
+    );
+    const longest = Math.max(0, ...columns.map((c) => c.length));
+    const interleaved: SpotlightCard[] = [];
+    for (let i = 0; i < longest; i++) {
+      columns.forEach((col) => {
+        const s = col[i];
+        if (!s) return;
+        interleaved.push({
+          id: s.id,
           badgeTitle: s.badgeTitle,
           subtitle: s.subtitle,
           price: s.price,
-          image: s.image || DEFAULT_COLUMNS[colIdx].slides[0].image,
-          imageAlt: s.subtitle,
-          tagRibbon: s.tagRibbon || "FEATURED",
-          circleColor: DEFAULT_COLUMNS[colIdx].slides[sIdx % DEFAULT_COLUMNS[colIdx].slides.length].circleColor,
-          cardBg: DEFAULT_COLUMNS[colIdx].slides[sIdx % DEFAULT_COLUMNS[colIdx].slides.length].cardBg,
-          textColor: DEFAULT_COLUMNS[colIdx].slides[sIdx % DEFAULT_COLUMNS[colIdx].slides.length].textColor,
-          priceColor: DEFAULT_COLUMNS[colIdx].slides[sIdx % DEFAULT_COLUMNS[colIdx].slides.length].priceColor,
-          activeDotColor: DEFAULT_COLUMNS[colIdx].slides[sIdx % DEFAULT_COLUMNS[colIdx].slides.length].activeDotColor,
-        }));
-
-        // If only 1 slide in this column, merge with defaults so it can auto-scroll
-        if (mappedSlides.length === 1) {
-          return {
-            id: colId,
-            slides: [...mappedSlides, ...DEFAULT_COLUMNS[colIdx].slides.slice(1)],
-          };
-        }
-
-        return {
-          id: colId,
-          slides: mappedSlides,
-        };
-      }
-
-      return DEFAULT_COLUMNS[colIdx];
-    });
+          image: s.image,
+          tagRibbon: s.tagRibbon,
+          link: s.link || DEFAULT_BANNER_LINK,
+        });
+      });
+    }
+    return interleaved.length > 0 ? interleaved : DEFAULT_CARDS;
   }, [spotlightSlides]);
 
-  // Auto-slide every 3.5 seconds across all 3 columns simultaneously
-  useEffect(() => {
-    if (isPaused) return;
+  // Endless loop: render the cards three times and keep the view in the middle copy.
+  // Whenever scrolling settles in the first/last copy, jump by one copy's width —
+  // the content there is identical, so the jump is invisible and the strip never rewinds.
+  const n = cards.length;
+  const loop = n > 1;
+  const items = loop ? [...cards, ...cards, ...cards] : cards;
 
-    const interval = setInterval(() => {
-      setActiveIndices((prev) =>
-        prev.map((currIdx, colIdx) => {
-          const colSlides = promoColumns[colIdx]?.slides;
-          const total = colSlides?.length || 1;
-          return (currIdx + 1) % total;
-        })
-      );
-    }, 3500);
-
-    return () => clearInterval(interval);
-  }, [isPaused, promoColumns]);
-
-  const handleCardClick = (productId?: string) => {
-    const liveProducts = storeProducts;
-    if (productId) {
-      const prod = liveProducts.find((p) => p.id === productId);
-      if (prod) {
-        openProductDetail(prod);
-        return;
-      }
-    }
-    if (liveProducts.length > 0 && liveProducts[0]) {
-      openProductDetail(liveProducts[0]);
-      return;
-    }
-    const catalog = document.getElementById("catalog-section") || document.querySelector("main");
-    if (catalog) catalog.scrollIntoView({ behavior: "smooth" });
+  const nearestItem = () => {
+    const el = scrollerRef.current;
+    const offsets = offsetsRef.current;
+    if (!el || offsets.length === 0) return 0;
+    let nearest = 0;
+    offsets.forEach((o, i) => {
+      if (Math.abs(o - el.scrollLeft) < Math.abs(offsets[nearest]! - el.scrollLeft)) nearest = i;
+    });
+    return nearest;
   };
 
+  const recenter = useCallback(() => {
+    const el = scrollerRef.current;
+    const setWidth = offsetsRef.current[n];
+    if (!el || touchingRef.current) return;
+    el.style.scrollSnapType = ""; // re-enable snapping switched off by a mouse drag
+    if (!loop || setWidth === undefined) return;
+    const i = nearestItem();
+    if (i < n) el.scrollLeft += setWidth;
+    else if (i >= 2 * n) el.scrollLeft -= setWidth;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [n, loop]);
+
+  const measure = useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const children = Array.from(el.children) as HTMLElement[];
+    const base = children[0]?.offsetLeft ?? 0;
+    offsetsRef.current = children.map((c) => c.offsetLeft - base);
+    // Keep showing the same card (in the middle copy) after a resize or data change
+    if (loop) el.scrollLeft = offsetsRef.current[n + activeRef.current] ?? 0;
+  }, [n, loop]);
+
+  useEffect(() => {
+    measure();
+    const el = scrollerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [measure]);
+
+  const scrollToItem = (i: number) => {
+    const el = scrollerRef.current;
+    const offsets = offsetsRef.current;
+    if (!el || offsets.length === 0) return;
+    const target = Math.max(0, Math.min(offsets.length - 1, i));
+    el.scrollTo({ left: offsets[target] ?? 0, behavior: "smooth" });
+  };
+
+  const step = (dir: 1 | -1) => scrollToItem(nearestItem() + dir);
+
+  // Mouse click-and-drag scrolling (touch devices already swipe natively)
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = scrollerRef.current;
+    if (e.pointerType !== "mouse" || e.button !== 0 || !el) return;
+    suppressClick.current = false;
+    dragRef.current = { x: e.clientX, left: el.scrollLeft, startItem: nearestItem(), moved: false };
+    touchingRef.current = true;
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    const el = scrollerRef.current;
+    if (!d || !el) return;
+    const dx = e.clientX - d.x;
+    if (!d.moved && Math.abs(dx) > 5) {
+      d.moved = true;
+      el.style.scrollSnapType = "none"; // snapping would fight the drag
+      el.setPointerCapture(e.pointerId);
+      setIsDragging(true);
+    }
+    if (d.moved) el.scrollLeft = d.left - dx;
+  };
+
+  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    touchingRef.current = false;
+    if (!d?.moved) return;
+    suppressClick.current = true; // the release shouldn't open the card under the cursor
+    setIsDragging(false);
+    // Settle on the nearest card; a short flick still moves at least one card
+    const dx = e.clientX - d.x;
+    let target = nearestItem();
+    if (target === d.startItem && Math.abs(dx) > 40) target += dx < 0 ? 1 : -1;
+    scrollToItem(target);
+  };
+
+  const onClickCapture = (e: React.MouseEvent) => {
+    if (!suppressClick.current) return;
+    suppressClick.current = false;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  // Dots jump to whichever copy of that card is closest, so the strip takes the short way
+  const goToCard = (cardIdx: number) => {
+    const current = nearestItem();
+    const copies = loop ? [cardIdx, cardIdx + n, cardIdx + 2 * n] : [cardIdx];
+    scrollToItem(copies.reduce((a, b) => (Math.abs(b - current) < Math.abs(a - current) ? b : a)));
+  };
+
+  const handleScroll = () => {
+    const i = nearestItem() % (n || 1);
+    if (i !== activeRef.current) setActive(i);
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+    settleTimer.current = setTimeout(recenter, 150);
+  };
+
+  useEffect(
+    () => () => {
+      if (settleTimer.current) clearTimeout(settleTimer.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (isPaused || !loop) return;
+    const interval = setInterval(() => step(1), AUTOPLAY_MS);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPaused, loop]);
+
   return (
-    <section
-      className="mx-auto max-w-[1280px] px-4 sm:px-6 py-3 sm:py-5 select-none"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
-    >
-      {/* 
-        Single Horizontal Row on Mobile (Smooth swipeable row with snap & 16px margins)
-        3-Column Grid on Desktop (md:grid md:grid-cols-3 — LOCKED & UNTOUCHED)
-      */}
-      <div className="flex md:grid md:grid-cols-3 gap-3 sm:gap-4 lg:gap-5 overflow-x-auto snap-x snap-mandatory scrollbar-none pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0">
-        {promoColumns.map((column, colIdx) => {
-          const activeIndex = (activeIndices[colIdx] || 0) % (column.slides.length || 1);
-          const currentSlide = column.slides[activeIndex] || column.slides[0];
+    <section className="mx-auto max-w-[1280px] px-4 sm:px-6 select-none">
+      <div
+        className="relative group/strip"
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+        onTouchStart={() => {
+          touchingRef.current = true;
+          setIsPaused(true);
+        }}
+        onTouchEnd={() => {
+          touchingRef.current = false;
+          setIsPaused(false);
+          handleScroll(); // settle even if the swipe had no momentum
+        }}
+      >
+        <div
+          ref={scrollerRef}
+          onScroll={handleScroll}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onPointerLeave={(e) => {
+            if (dragRef.current && !dragRef.current.moved) dragRef.current = null;
+            if (!dragRef.current) touchingRef.current = false;
+            else endDrag(e);
+          }}
+          onClickCapture={onClickCapture}
+          className={`relative flex gap-3 lg:gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-none -mx-4 px-4 scroll-px-4 sm:mx-0 sm:px-0 sm:scroll-px-0 md:cursor-grab ${isDragging ? "md:cursor-grabbing [&_*]:!cursor-grabbing" : ""}`}
+        >
+          {items.map((card, itemIdx) => {
+            const idx = itemIdx % n;
+            const isClone = loop && (itemIdx < n || itemIdx >= 2 * n);
+            const theme = BANNER_THEMES[(idx + THEME_OFFSET) % BANNER_THEMES.length]!;
+            return (
+              <a
+                key={`${card.id || idx}-${itemIdx}`}
+                href={card.link}
+                onClick={handleBannerClick(card.link)}
+                draggable={false}
+                aria-hidden={isClone || undefined}
+                tabIndex={isClone ? -1 : undefined}
+                className={`group relative block shrink-0 snap-start overflow-hidden rounded-2xl basis-[86%] sm:basis-[62%] md:basis-[calc((100%_-_0.75rem)/2)] lg:basis-[calc((100%_-_2rem)/3)] aspect-[2.05/1] lg:aspect-[1.85/1] bg-gradient-to-br ${theme.bg} ${BANNER_DARK_BG} cursor-pointer`}
+              >
+                {/* Ambient light */}
+                <div className="pointer-events-none absolute -top-1/2 right-[5%] h-[140%] aspect-square rounded-full bg-white/45 dark:bg-white/[0.04] blur-3xl" />
 
-          return (
-            <div
-              key={column.id}
-              onClick={() => handleCardClick(currentSlide.productId)}
-              className={`group relative overflow-hidden rounded-2xl shadow-xs hover:shadow-lg transition-all duration-500 w-[84vw] xs:w-[78vw] sm:w-auto shrink-0 snap-center md:shrink min-h-[165px] sm:min-h-[185px] lg:min-h-[195px] p-4 sm:p-5 flex items-center justify-between cursor-pointer ${currentSlide.cardBg}`}
-            >
-              {/* LEFT SIDE: Title, Subtitle, Price & Pagination Dots */}
-              <div className="flex-1 min-w-0 z-10 flex flex-col justify-between h-full pr-2 space-y-2">
-                <div className="space-y-1">
-                  {/* Badge Title */}
-                  <h3
-                    key={`title-${currentSlide.id}-${activeIndex}`}
-                    className={`font-display text-sm sm:text-base lg:text-[17px] font-black uppercase tracking-tight leading-tight transition-all duration-500 animate-in fade-in slide-in-from-bottom-1 ${currentSlide.textColor}`}
-                  >
-                    {currentSlide.badgeTitle}
-                  </h3>
+                <div className="absolute inset-0 grid grid-cols-[1.2fr_1fr] items-center gap-2 px-5 lg:px-5 xl:px-6 py-4">
+                  {/* Copy */}
+                  <div className="z-10 min-w-0 space-y-1.5 lg:space-y-2">
+                    {card.tagRibbon && (
+                      <span
+                        className={`inline-block rounded-full bg-white/75 dark:bg-white/10 backdrop-blur-sm px-2.5 py-0.5 text-[9px] lg:text-[10px] font-bold uppercase tracking-[0.2em] ${theme.title} dark:text-white`}
+                      >
+                        {card.tagRibbon}
+                      </span>
+                    )}
+                    <h3
+                      className={`font-display uppercase font-extrabold tracking-[0.05em] leading-[1.05] text-base sm:text-lg lg:text-[1.05rem] xl:text-xl line-clamp-2 ${theme.title} dark:text-white`}
+                    >
+                      {card.badgeTitle}
+                    </h3>
+                    <p
+                      className={`text-[10px] lg:text-[11px] uppercase tracking-[0.14em] leading-snug line-clamp-2 ${theme.body} dark:text-slate-400`}
+                    >
+                      {card.subtitle}
+                    </p>
+                    <div className="pt-1 lg:pt-2 flex items-center gap-3">
+                      <span
+                        className={`font-display text-sm lg:text-lg font-bold ${theme.title} dark:text-white`}
+                      >
+                        {card.price}
+                      </span>
+                      <span
+                        className={`inline-flex items-center gap-1 text-[10px] lg:text-[11px] font-bold uppercase tracking-[0.16em] ${theme.body} dark:text-slate-300`}
+                      >
+                        Shop
+                        <ArrowRight className="h-3 w-3 transition-transform duration-300 group-hover:translate-x-1" />
+                      </span>
+                    </div>
+                  </div>
 
-                  {/* Subtitle */}
-                  <p
-                    key={`sub-${currentSlide.id}-${activeIndex}`}
-                    className="text-[10.5px] sm:text-[11.5px] font-bold uppercase tracking-wide opacity-80 line-clamp-2 leading-snug transition-all duration-500 animate-in fade-in"
-                  >
-                    {currentSlide.subtitle}
-                  </p>
-                </div>
-
-                {/* Price */}
-                <div
-                  key={`price-${currentSlide.id}-${activeIndex}`}
-                  className="pt-0.5 sm:pt-1 transition-all duration-500 animate-in fade-in"
-                >
-                  <span
-                    className={`font-display text-base sm:text-lg lg:text-xl font-black tracking-tight ${currentSlide.priceColor}`}
-                  >
-                    {currentSlide.price}
-                  </span>
-                </div>
-
-                {/* Pagination Indicator Dots */}
-                <div
-                  className="flex items-center gap-1.5 pt-1.5"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {column.slides.map((_, dotIdx) => (
-                    <button
-                      key={dotIdx}
-                      type="button"
-                      aria-label={`Slide ${dotIdx + 1}`}
-                      onClick={() => {
-                        setActiveIndices((prev) => {
-                          const updated = [...prev];
-                          updated[colIdx] = dotIdx;
-                          return updated;
-                        });
-                      }}
-                      className={`h-1.5 transition-all duration-300 rounded-full cursor-pointer ${
-                        dotIdx === activeIndex
-                          ? `w-5 ${currentSlide.activeDotColor}`
-                          : "w-1.5 bg-neutral-300 dark:bg-white/30 hover:bg-neutral-400"
-                      }`}
+                  {/* Product */}
+                  <div className="relative h-full min-h-0 flex items-center justify-center">
+                    {/* <div className="absolute aspect-square h-[78%] rounded-full bg-white/55 dark:bg-white/[0.06]" /> */}
+                    <div className="absolute bottom-[9%] h-[7%] w-[55%] rounded-[50%] bg-black/10 dark:bg-black/30 blur-md" />
+                    <img
+                      src={card.image}
+                      alt={card.subtitle}
+                      draggable={false}
+                      loading="lazy"
+                      className="relative z-10 h-[80%] w-auto max-w-full object-contain mix-blend-multiply dark:mix-blend-normal drop-shadow-[0_14px_16px_rgba(15,23,42,0.16)] transition-transform duration-700 ease-out group-hover:scale-[1.06] group-hover:-rotate-2"
                     />
-                  ))}
+                  </div>
                 </div>
-              </div>
-
-              {/* RIGHT SIDE: Circular Backdrop Accent + Product Cutout + Ribbon Badge */}
-              <div className="relative shrink-0 w-28 h-28 xs:w-32 xs:h-32 sm:w-36 sm:h-36 flex items-center justify-center">
-                {/* Circular Backdrop Disc */}
-                <div
-                  className={`absolute inset-1 rounded-full transition-all duration-500 scale-95 group-hover:scale-105 ${currentSlide.circleColor}`}
-                />
-
-                {/* Tag Ribbon Badge */}
-                {currentSlide.tagRibbon && (
-                  <span
-                    key={`ribbon-${currentSlide.id}-${activeIndex}`}
-                    className="absolute -top-1 -right-1 z-20 rounded-md bg-rose-600 text-white font-black text-[9.5px] sm:text-[10.5px] px-2 py-0.5 uppercase tracking-wider shadow-sm rotate-2 animate-in zoom-in-90 duration-300"
-                  >
-                    {currentSlide.tagRibbon}
-                  </span>
-                )}
-
-                {/* Product Image (Clean Transparent PNG Cutout) */}
-                <img
-                  key={`img-${currentSlide.id}-${activeIndex}`}
-                  src={currentSlide.image}
-                  alt={currentSlide.imageAlt}
-                  className="relative z-10 w-full h-full object-contain p-2 drop-shadow-md group-hover:scale-110 transition-all duration-500 ease-out animate-in fade-in zoom-in-95"
-                />
-              </div>
-            </div>
-          );
-        })}
+              </a>
+            );
+          })}
+        </div>
       </div>
+
+      {loop && (
+        <div className="mt-1 flex items-center justify-center gap-1 md:gap-1.5">
+          {cards.map((_, dotIdx) => {
+            const isActive = active === dotIdx;
+            return (
+              <button
+                key={dotIdx}
+                type="button"
+                onClick={() => goToCard(dotIdx)}
+                aria-label={`Go to offer ${dotIdx + 1}`}
+                aria-current={isActive}
+                className="py-1.5 px-0.5 cursor-pointer"
+              >
+                <span
+                  className={`block h-1 md:h-1.5 rounded-full transition-all duration-500 ${
+                    isActive
+                      ? "w-5 md:w-7 bg-neutral-900/80 dark:bg-white"
+                      : "w-1 md:w-1.5 bg-neutral-900/20 dark:bg-white/25"
+                  }`}
+                />
+              </button>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }
