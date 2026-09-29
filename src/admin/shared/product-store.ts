@@ -141,6 +141,27 @@ export async function updateProductReview(
   return saved;
 }
 
+/** Approves/rejects many reviews, refreshing the catalog once; failures are collected. */
+export async function setProductReviewStatuses(
+  reviews: { productId: string; reviewId: string }[],
+  status: NonNullable<Review["status"]>
+): Promise<{ updated: number; failed: number }> {
+  let updated = 0;
+  let failed = 0;
+
+  for (const { productId, reviewId } of reviews) {
+    try {
+      await api.patch(reviewsUrl(productId, reviewId), { status });
+      updated++;
+    } catch {
+      failed++;
+    }
+  }
+
+  await refreshEverything();
+  return { updated, failed };
+}
+
 export async function deleteProductReview(productId: string, reviewId: string): Promise<AdminProduct> {
   const saved = await api.delete<AdminProduct>(reviewsUrl(productId, reviewId));
   await refreshEverything();

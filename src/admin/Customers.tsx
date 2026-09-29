@@ -2,14 +2,14 @@
 // FaasBay Commerce OS — Customers, Segments, Reviews, Support
 // ============================================================================
 import React, { useState } from "react";
-import { Plus, Edit2, Trash2, Eye, Users, Star, MessageSquare, Tag, Mail, Filter } from "lucide-react";
+import { Plus, Edit2, Trash2, Eye, Users, Star, Check, MessageSquare, Tag, Mail, Filter } from "lucide-react";
 import { DataTable, StatusBadge, PageHeader, SlideOver, ConfirmDialog, Btn, FormField, Input, Textarea, Select, Toggle, Card, KPICard, TabSwitcher, formatCurrency, formatNumber } from "./shared/components";
 import type { AdminCustomer, AdminSegment, AdminReview, AdminTicket } from "./shared/types";
 import { API_ENDPOINTS } from "@/config/api";
 import { api } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useAdminProducts, reviewStatusOf, formatReviewDate } from "@/components/store/data";
-import { updateProductReview, deleteProductReview } from "./shared/product-store";
+import { updateProductReview, deleteProductReview, setProductReviewStatuses } from "./shared/product-store";
 
 // ── Customers ───────────────────────────────────────────────────────────────
 
@@ -238,8 +238,44 @@ export function ReviewsPage() {
   }, [adminProducts]);
 
   const [tab, setTab] = useState("all");
+  // Open on the moderation queue when there is one (decided once reviews have loaded).
+  const tabChosen = React.useRef(false);
+  React.useEffect(() => {
+    if (tabChosen.current || reviews.length === 0) return;
+    tabChosen.current = true;
+    if (reviews.some(r => r.status === "Pending")) setTab("Pending");
+  }, [reviews]);
+  const [selected, setSelected] = useState<AdminReview[]>([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  // Bumped after a bulk action so the table drops its (now stale) checkbox selection.
+  const [tableKey, setTableKey] = useState(0);
 
   const filtered = tab === "all" ? reviews : reviews.filter(r => r.status === tab);
+  const pending = reviews.filter(r => r.status === "Pending");
+
+  const changeTab = (next: string) => {
+    tabChosen.current = true;
+    setTab(next);
+    setSelected([]);
+    setTableKey(k => k + 1);
+  };
+
+  const bulkUpdate = async (targets: AdminReview[], status: "Approved" | "Rejected") => {
+    if (targets.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const { updated, failed } = await setProductReviewStatuses(
+        targets.map(r => ({ productId: r.productId, reviewId: r.id })),
+        status
+      );
+      if (updated) toast.success(`${updated} review${updated === 1 ? "" : "s"} ${status === "Approved" ? "approved — now visible on the storefront" : "rejected — hidden from shoppers"}.`);
+      if (failed) toast.error(`${failed} review${failed === 1 ? "" : "s"} could not be updated.`);
+    } finally {
+      setBulkBusy(false);
+      setSelected([]);
+      setTableKey(k => k + 1);
+    }
+  };
 
   const updateStatus = async (review: AdminReview, status: "Approved" | "Rejected") => {
     setBusyId(review.id);
@@ -269,16 +305,38 @@ export function ReviewsPage() {
     { key: "rating", label: "Rating", width: "60px", render: (r: AdminReview) => (<div className="flex items-center gap-0.5">{Array.from({ length: 5 }, (_, i) => <Star key={i} size={10} className={i < r.rating ? "text-amber-400 fill-amber-400" : "text-gray-200"} />)}</div>) },
     { key: "productTitle", label: "Product", render: (r: AdminReview) => <span className="text-xs text-gray-700 truncate max-w-[140px] block">{r.productTitle}</span> },
     { key: "customerName", label: "Customer", render: (r: AdminReview) => (<div><div className="text-xs text-gray-900">{r.customerName}</div>{r.verified && <span className="text-[10px] text-emerald-600">✓ Verified</span>}</div>) },
-    { key: "comment", label: "Review", width: "30%", render: (r: AdminReview) => (<div><div className="text-xs font-medium text-gray-900">{r.title}</div><div className="text-[11px] text-gray-500 truncate max-w-[220px]">{r.comment}</div></div>) },
+    { key: "comment", label: "Review", width: "30%", render: (r: AdminReview) => (<div><div className="text-xs font-medium text-gray-900">{r.title}</div><div className="text-[11px] text-gray-500 line-clamp-2 max-w-[320px]" title={r.comment}>{r.comment}</div></div>) },
     { key: "status", label: "Status", render: (r: AdminReview) => <StatusBadge status={r.status} size="xs" /> },
     { key: "date", label: "Date", render: (r: AdminReview) => <span className="text-xs text-gray-500">{formatReviewDate(r.date)}</span> },
   ];
 
   return (
     <div>
-      <PageHeader title="Reviews" subtitle={`${reviews.length} product reviews`} breadcrumbs={[{ label: "Customers" }, { label: "Reviews" }]} />
-      <TabSwitcher tabs={[{ key: "all", label: "All", count: reviews.length }, { key: "Pending", label: "Pending", count: reviews.filter(r => r.status === "Pending").length }, { key: "Approved", label: "Approved", count: reviews.filter(r => r.status === "Approved").length }, { key: "Rejected", label: "Rejected", count: reviews.filter(r => r.status === "Rejected").length }]} active={tab} onChange={setTab} />
-      <DataTable columns={columns} data={filtered} keyField="id" searchPlaceholder="Search reviews..."
+      <PageHeader
+        title="Reviews"
+        subtitle={`${reviews.length} product reviews · ${pending.length} awaiting approval`}
+        breadcrumbs={[{ label: "Products" }, { label: "Reviews" }]}
+        actions={pending.length > 0 && (
+          <Btn icon={<Check size={13} />} disabled={bulkBusy} onClick={() => void bulkUpdate(pending, "Approved")}>
+            {bulkBusy ? "Updating..." : `Approve all pending (${pending.length})`}
+          </Btn>
+        )}
+      />
+      <TabSwitcher tabs={[{ key: "all", label: "All", count: reviews.length }, { key: "Pending", label: "Pending", count: pending.length }, { key: "Approved", label: "Approved", count: reviews.filter(r => r.status === "Approved").length }, { key: "Rejected", label: "Rejected", count: reviews.filter(r => r.status === "Rejected").length }]} active={tab} onChange={changeTab} />
+      <DataTable key={tableKey} columns={columns} data={filtered} keyField="id" searchPlaceholder="Search reviews..."
+        selectable
+        onSelectionChange={setSelected}
+        bulkActions={
+          <div className={`flex items-center gap-2 ${bulkBusy ? "opacity-50 pointer-events-none" : ""}`}>
+            <span className="text-xs text-gray-500">{selected.length} selected</span>
+            {selected.some(r => r.status !== "Approved") && (
+              <button onClick={() => void bulkUpdate(selected.filter(r => r.status !== "Approved"), "Approved")} className="px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100">Approve selected</button>
+            )}
+            {selected.some(r => r.status !== "Rejected") && (
+              <button onClick={() => void bulkUpdate(selected.filter(r => r.status !== "Rejected"), "Rejected")} className="px-2.5 py-1.5 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100">Reject selected</button>
+            )}
+          </div>
+        }
         actions={(r: AdminReview) => (
           <div className={`flex items-center gap-1 ${busyId === r.id ? "opacity-50 pointer-events-none" : ""}`}>
             {r.status !== "Approved" && <button onClick={() => void updateStatus(r, "Approved")} className="px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 bg-emerald-50 rounded hover:bg-emerald-100">Approve</button>}

@@ -289,7 +289,7 @@ function AdminManagementPortal() {
           key: "catalog",
           label: "Products",
           icon: <Package size={15} />,
-          subSummary: "Products, Categories, Collections, Inventory, Stock",
+          subSummary: "Products, Categories, Collections, Inventory, Reviews",
         },
         {
           key: "customers",
@@ -355,6 +355,7 @@ function AdminManagementPortal() {
     { label: "Categories Management", tab: "catalog" as PrimaryTab, subTab: "categories", category: "Catalog" },
     { label: "Collections & Curations", tab: "catalog" as PrimaryTab, subTab: "collections", category: "Catalog" },
     { label: "Inventory & Stock Levels", tab: "catalog" as PrimaryTab, subTab: "inventory", category: "Catalog" },
+    { label: "Customer Reviews Moderation", tab: "catalog" as PrimaryTab, subTab: "reviews", category: "Catalog" },
     { label: "Customer Directory", tab: "customers" as PrimaryTab, subTab: "customers", category: "Customers" },
     { label: "Customer Segments", tab: "customers" as PrimaryTab, subTab: "segments", category: "Customers" },
     { label: "Support Tickets & Inquiries", tab: "customers" as PrimaryTab, subTab: "support", category: "Customers" },
@@ -387,7 +388,7 @@ function AdminManagementPortal() {
             onNavigate={(dest: string) => {
               if (dest === "orders") navigateTo("orders", "orders");
               else if (dest === "inventory") navigateTo("catalog", "inventory");
-              else if (dest === "reviews") navigateTo("catalog", "products");
+              else if (dest === "reviews") navigateTo("catalog", "reviews");
               else if (dest === "products") navigateTo("catalog", "products");
               else navigateTo(dest as PrimaryTab);
             }}

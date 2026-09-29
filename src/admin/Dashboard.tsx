@@ -6,7 +6,7 @@ import {
   ChevronRight, ArrowRight
 } from "lucide-react";
 import { KPICard, StatusBadge, DateRangeSelector, Card, Btn, formatCurrency, formatNumber } from "./shared/components";
-import { useStoreProducts, refreshProducts } from "@/components/store/data";
+import { useStoreProducts, useAdminProducts, refreshProducts, reviewStatusOf } from "@/components/store/data";
 import type { AdminOrder } from "./shared/types";
 import { API_ENDPOINTS } from "@/config/api";
 import { useAdminOrders } from "@/lib/cloud-orders-sync";
@@ -231,6 +231,8 @@ export default function Dashboard({ onNavigate }: { onNavigate: (tab: string) =>
   // Orders and catalog both come from MongoDB via shared stores.
   const { value: orders, refresh: refreshOrdersList } = useAdminOrders();
   const storeProducts = useStoreProducts();
+  // The admin catalog includes reviews awaiting moderation; the storefront one does not.
+  const { value: adminProducts } = useAdminProducts();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -248,11 +250,15 @@ export default function Dashboard({ onNavigate }: { onNavigate: (tab: string) =>
 
   const awaitingShipmentCount = orders.filter((o) => ["Processing", "Packed", "Ready to Ship", "Pending"].includes(o?.orderStatus || "Processing")).length;
   const lowStockCount = storeProducts.filter((p) => typeof p.stock === "number" && p.stock <= 5).length;
+  const pendingReviewCount = adminProducts.reduce(
+    (n: number, p: any) => n + (Array.isArray(p.customerReviews) ? p.customerReviews.filter((r: any) => reviewStatusOf(r) === "Pending").length : 0),
+    0
+  );
 
   const needsAttention = [
     { icon: <ShoppingCart size={15} />, label: "Orders awaiting shipment", count: awaitingShipmentCount, color: "text-amber-700 bg-amber-50 border border-amber-200", tab: "orders" },
     { icon: <Package size={15} />, label: "Low stock items needing restock", count: lowStockCount, color: "text-rose-700 bg-rose-50 border border-rose-200", tab: "inventory" },
-    { icon: <MessageSquare size={15} />, label: "Customer reviews", count: 0, color: "text-purple-700 bg-purple-50 border border-purple-200", tab: "reviews" },
+    { icon: <MessageSquare size={15} />, label: "Customer reviews awaiting approval", count: pendingReviewCount, color: "text-purple-700 bg-purple-50 border border-purple-200", tab: "reviews" },
   ];
 
   const handleRefresh = async () => {

@@ -61,6 +61,7 @@ import {
 import Categories from "./Categories";
 import Collections from "./Collections";
 import Inventory from "./Inventory";
+import { ReviewsPage } from "./Customers";
 import { RichDescriptionEditor } from "./RichDescriptionEditor";
 import type { AdminProduct } from "./shared/types";
 import {
@@ -4341,6 +4342,14 @@ export function ProductsList({
 
 // ── Master Catalog View with Sub-Navigation ────────────────────────────────
 
+/** Reviews awaiting moderation across the whole catalog. */
+function countPendingReviews(products: AdminProduct[]): number {
+  return products.reduce(
+    (n, p) => n + (p.customerReviews ?? []).filter((r) => reviewStatusOf(r) === "Pending").length,
+    0
+  );
+}
+
 export default function CatalogMasterView({
   initialTab = "products",
   initialSubTab,
@@ -4367,9 +4376,14 @@ export default function CatalogMasterView({
     return false;
   });
   const [productCount, setProductCount] = useState(() => getCachedAdminProducts().length);
+  const [pendingReviewCount, setPendingReviewCount] = useState(() => countPendingReviews(getCachedAdminProducts()));
 
   React.useEffect(() => {
-    const refresh = () => setProductCount(getCachedAdminProducts().length);
+    const refresh = () => {
+      const products = getCachedAdminProducts();
+      setProductCount(products.length);
+      setPendingReviewCount(countPendingReviews(products));
+    };
     void loadAdminProducts().then(refresh);
     window.addEventListener("faasbay_products_updated", refresh);
 
@@ -4416,6 +4430,7 @@ export default function CatalogMasterView({
             { key: "categories", label: "Categories", count: 16 },
             { key: "collections", label: "Collections", count: 4 },
             { key: "inventory", label: "Inventory & Stock Levels" },
+            { key: "reviews", label: "Reviews", ...(pendingReviewCount > 0 && { count: pendingReviewCount }) },
           ]}
           active={tab}
           onChange={handleTabChange}
@@ -4430,6 +4445,7 @@ export default function CatalogMasterView({
       {tab === "categories" && <Categories />}
       {tab === "collections" && <Collections />}
       {tab === "inventory" && <Inventory />}
+      {tab === "reviews" && <ReviewsPage />}
     </div>
   );
 }
