@@ -3154,7 +3154,7 @@ export function ProductsList({
                 Payment & Delivery Charges
               </h3>
 
-              {/* COD Toggle & Advance Delivery Charge */}
+              {/* COD Toggle & COD Collection Charge */}
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
@@ -3171,7 +3171,7 @@ export function ProductsList({
                 {codAvailable && (
                   <div className="pt-2.5 border-t border-slate-200/70 flex items-center justify-between gap-3">
                     <div>
-                      <span className="text-xs font-semibold text-slate-700 block">COD Advance Delivery Charge (₹)</span>
+                      <span className="text-xs font-semibold text-slate-700 block">COD Collection Charge (₹)</span>
                       <span className="text-[10px] text-slate-400">Customer pays this delivery fee online upfront</span>
                     </div>
                     <div className="relative w-28 shrink-0">

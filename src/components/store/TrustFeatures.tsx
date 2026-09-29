@@ -214,7 +214,7 @@ export function TrustFeatures() {
           </div>
           <div className="min-w-0">
             <h3 className="text-[11.5px] sm:text-sm font-bold text-foreground truncate">
-              7-Day Returns
+              3-Day Returns
             </h3>
             <p className="text-[9.5px] sm:text-[11px] text-muted-foreground font-medium truncate">
               Doorstep swap & pickup

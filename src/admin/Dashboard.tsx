@@ -354,7 +354,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (tab: string) =>
             <SalesChart points={computeSalesTrend(orders)} />
           </div>
           <div className="flex items-center justify-between mt-3 text-[11px] text-slate-400 font-medium border-t border-slate-100 pt-2">
-            <span>{computeSalesTrend(orders)[0]?.label || "7 Days Ago"}</span>
+            <span>{computeSalesTrend(orders)[0]?.label || "3 Days Ago"}</span>
             <span>{computeSalesTrend(orders)[3]?.label || "Mid Period"}</span>
             <span className="font-bold text-emerald-600">Today (Live)</span>
           </div>

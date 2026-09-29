@@ -30,7 +30,7 @@ const marqueeItems: MarqueeItem[] = [
   },
   {
     icon: <RotateCcw className="h-3.5 w-3.5 text-neutral-300" />,
-    text: "7-Day Hassle-Free Doorstep Replacement Guarantee",
+    text: "3-Day Hassle-Free Doorstep Replacement Guarantee",
     highlight: "Easy Returns",
   },
   {

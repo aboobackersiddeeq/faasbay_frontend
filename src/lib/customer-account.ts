@@ -136,3 +136,25 @@ export function loginCustomer(identifier: string, password: string): Promise<Cus
     body: { identifier, password },
   });
 }
+
+/**
+ * Updates the shopper's name and mobile number. The email identifies the
+ * account and can't be changed; the current password confirms the change.
+ */
+export function updateCustomerProfile(input: {
+  email: string;
+  currentPassword: string;
+  name: string;
+  phone: string;
+}): Promise<CustomerAccount> {
+  return apiRequest<CustomerAccount>(API_ENDPOINTS.customerProfile, { method: "PUT", body: input });
+}
+
+/** Replaces the shopper's password after checking the current one. */
+export async function changeCustomerPassword(input: {
+  email: string;
+  currentPassword: string;
+  newPassword: string;
+}): Promise<void> {
+  await apiRequest(API_ENDPOINTS.customerChangePassword, { method: "POST", body: input });
+}

@@ -20,6 +20,7 @@ import {
   Building2,
   Banknote,
   Zap,
+  BadgePercent,
 } from "lucide-react";
 import faasbayLogo from "@/assets/faasbay-logo.png";
 import { useCart } from "@/hooks/use-cart";
@@ -172,19 +173,116 @@ export function CheckoutModal() {
   // because clearing the cart / Buy Now item changes every live amount above.
   const [confirmed, setConfirmed] = useState<{ isCod: boolean; paidNow: number; dueOnDelivery: number } | null>(null);
 
-  // Determine COD Advance Delivery Fee (from primary product or fallback to 100)
+  // Determine COD Collection Charge (the admin's COD charge) (from primary product or fallback to 100)
   const primaryProduct = items[0]?.product;
-  const codAdvanceDeliveryFee = primaryProduct?.deliveryCharge !== undefined
+  const codCollectionCharge = primaryProduct?.deliveryCharge !== undefined
     ? Number(primaryProduct.deliveryCharge)
     : (primaryProduct?.codCharge !== undefined ? Number(primaryProduct.codCharge) : 100);
 
   const isCod = paymentMethod === "cod";
-  const shippingFee = isCod ? codAdvanceDeliveryFee : 0; // Prepaid is 100% Free Delivery
+  const shippingFee = isCod ? codCollectionCharge : 0; // Delivery is always free; COD adds the collection charge
   const productPriceDue = Math.max(0, subtotal - discount);
   const total = productPriceDue + shippingFee;
 
-  const amountToPayNow = isCod ? codAdvanceDeliveryFee : productPriceDue;
+  const amountToPayNow = isCod ? codCollectionCharge : productPriceDue;
   const amountDueOnDelivery = isCod ? productPriceDue : 0;
+
+  // MRP = each item's compare-at price (or its selling price when it has none).
+  const toRupees = (v: unknown) => parseFloat(String(v ?? "").replace(/[^0-9.]/g, "")) || 0;
+  const mrpTotal = Math.max(
+    subtotal,
+    items.reduce((sum, i) => {
+      const price = toRupees(i.product.price);
+      return sum + Math.max(price, toRupees(i.product.compareAt)) * i.quantity;
+    }, 0)
+  );
+  const mrpDiscount = mrpTotal - subtotal;
+  const totalSavings = mrpDiscount + discount;
+  const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+
+  const renderPriceDetails = () => (
+    <div className="rounded-2xl border border-border/60 bg-card text-[13px]">
+      <div className="px-4 pt-4 pb-1 flex items-baseline justify-between gap-3">
+        <span className="font-bold text-sm text-foreground">Price Details</span>
+        {address && (
+          <span className="text-[11px] text-muted-foreground truncate max-w-[60%]">
+            Deliver to <span className="font-semibold text-foreground">{address}{city ? `, ${city}` : ""}</span>
+          </span>
+        )}
+      </div>
+
+      <div className="px-4 py-2 space-y-3">
+        <div className="flex justify-between text-foreground">
+          <span>MRP (incl. of all taxes)</span>
+          <span className={mrpDiscount > 0 ? "text-muted-foreground line-through" : ""}>{inr(mrpTotal)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Platform Fee</span>
+          <span className="font-semibold text-emerald-600 dark:text-emerald-400">FREE (₹0)</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">
+            Original Price
+            {mrpDiscount > 0 && (
+              <span className="ml-1.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                ({Math.round((mrpDiscount / mrpTotal) * 100)}% off MRP)
+              </span>
+            )}
+          </span>
+          <span className="text-foreground">{inr(subtotal)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Delivery Charge</span>
+          <span className="font-semibold text-emerald-600 dark:text-emerald-400">FREE (₹0)</span>
+        </div>
+        {isCod && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">COD Collection Charge</span>
+            <span className="text-foreground">{inr(codCollectionCharge)}</span>
+          </div>
+        )}
+        {discount > 0 && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">
+              Coupon Discount{checkoutCouponCode ? ` (${checkoutCouponCode})` : ""}
+            </span>
+            <span className="text-emerald-600 dark:text-emerald-400">- {inr(discount)}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="mx-4 border-t border-border/80" />
+
+      <div className="px-4 py-3 space-y-3">
+        <div className="flex justify-between items-baseline font-bold text-foreground">
+          <span className="text-sm">Total Amount</span>
+          <span className="text-base">{inr(total)}</span>
+        </div>
+
+        {isCod && (
+          <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2 space-y-1 text-xs">
+            <div className="flex justify-between text-amber-900 dark:text-amber-300">
+              <span>Pay online now (collection charge)</span>
+              <span className="font-bold">{inr(amountToPayNow)}</span>
+            </div>
+            <div className="flex justify-between text-foreground">
+              <span>Pay cash on delivery</span>
+              <span className="font-bold">{inr(amountDueOnDelivery)}</span>
+            </div>
+          </div>
+        )}
+
+        {totalSavings > 0 && (
+          <div className="flex items-center justify-center gap-2 rounded-xl bg-emerald-500/10 px-3 py-2.5 text-emerald-700 dark:text-emerald-400">
+            <BadgePercent className="h-4 w-4 shrink-0" />
+            <span>
+              You'll save <strong className="font-black">{inr(totalSavings)}</strong> on this order!
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   // Sync with user profile if logged in
   useEffect(() => {
@@ -351,7 +449,7 @@ export function CheckoutModal() {
       return;
     }
 
-    // ONLINE PAYMENT GATEWAY (Razorpay) for Prepaid Order OR COD Advance Delivery Fee
+    // ONLINE PAYMENT GATEWAY (Razorpay) for Prepaid Order OR COD Collection Charge
     try {
       const isLoaded = await loadRazorpayScript();
       if (!isLoaded) {
@@ -406,7 +504,7 @@ export function CheckoutModal() {
         currency: "INR",
         name: "FaasBay",
         description: isCod 
-          ? `COD Advance Delivery Charge (₹${amountToPayNow})` 
+          ? `COD Collection Charge (₹${amountToPayNow})` 
           : `Order Payment (${items.length} item${items.length > 1 ? "s" : ""})`,
         image: faasbayLogo,
         prefill: {
@@ -420,7 +518,7 @@ export function CheckoutModal() {
             blocks: {
               chosen_method: {
                 name: isCod
-                  ? "Pay Advance Delivery Fee via UPI / QR"
+                  ? "Pay COD Collection Charge via UPI / QR"
                   : targetMethod === "card"
                   ? "Credit & Debit Cards"
                   : targetMethod === "netbanking"
@@ -616,12 +714,12 @@ export function CheckoutModal() {
                 </div>
                 <div className="flex justify-between font-bold text-foreground">
                   <span>Payment Mode:</span>
-                  <span className="text-emerald-600 font-bold uppercase">{shownIsCod ? "Cash on Delivery (Advance Paid)" : "Prepaid (Online)"}</span>
+                  <span className="text-emerald-600 font-bold uppercase">{shownIsCod ? "Cash on Delivery (Collection Charge Paid)" : "Prepaid (Online)"}</span>
                 </div>
                 {shownIsCod ? (
                   <>
                     <div className="flex justify-between font-bold text-foreground">
-                      <span>Advance Delivery Paid:</span>
+                      <span>COD Collection Charge Paid:</span>
                       <span className="text-emerald-600 font-extrabold">₹{shownPaidNow.toLocaleString("en-IN")} (Online Paid)</span>
                     </div>
                     <div className="flex justify-between font-bold text-foreground bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20">
@@ -758,9 +856,11 @@ export function CheckoutModal() {
                 )}
                 <div className="flex justify-between text-muted-foreground">
                   <span>Delivery Charges</span>
-                  <span className="font-bold text-emerald-600">
-                    ₹0 FREE (Prepaid) / ₹{codAdvanceDeliveryFee} (COD)
-                  </span>
+                  <span className="font-bold text-emerald-600">₹0 FREE</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>COD Collection Charge</span>
+                  <span className="font-semibold text-foreground">₹{codCollectionCharge} (COD only)</span>
                 </div>
                 <div className="flex justify-between border-t border-border/60 pt-2 text-sm font-black text-foreground">
                   <span>Product Amount</span>
@@ -899,7 +999,7 @@ export function CheckoutModal() {
               <div className="space-y-2 pt-1">
                 <div className="flex items-center gap-2.5 px-0.5">
                   <span className="text-[10.5px] font-black uppercase tracking-wider text-muted-foreground">
-                    CASH ON DELIVERY (WITH ADVANCE DELIVERY CHARGE)
+                    CASH ON DELIVERY (WITH COLLECTION CHARGE)
                   </span>
                   <div className="flex-1 h-px bg-border/80" />
                 </div>
@@ -909,8 +1009,8 @@ export function CheckoutModal() {
                     {
                       id: "cod" as const,
                       title: "Cash on Delivery (COD)",
-                      desc: `Pay ₹${codAdvanceDeliveryFee} advance delivery fee online • Pay ₹${productPriceDue.toLocaleString("en-IN")} cash on parcel delivery`,
-                      badge: `₹${codAdvanceDeliveryFee} Advance Fee`,
+                      desc: `Pay ₹${codCollectionCharge} COD collection charge online • Pay ₹${productPriceDue.toLocaleString("en-IN")} cash on parcel delivery`,
+                      badge: `₹${codCollectionCharge} Collection Charge`,
                       icon: "cod",
                     },
                   ].map((pm) => {
@@ -941,7 +1041,7 @@ export function CheckoutModal() {
                                 {pm.title}
                               </span>
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                                ₹{codAdvanceDeliveryFee} Advance
+                                ₹{codCollectionCharge} Collection Charge
                               </span>
                             </div>
                             <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -966,51 +1066,7 @@ export function CheckoutModal() {
                 </div>
               </div>
 
-              {/* Price Details Breakdown */}
-              <div className="rounded-2xl bg-secondary/30 p-4 text-xs space-y-2 border border-border/60">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Deliver To</span>
-                  <span className="font-semibold text-foreground truncate max-w-[200px]">{address}, {city}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Product Subtotal</span>
-                  <span className="font-semibold text-foreground">₹{subtotal.toLocaleString("en-IN")}</span>
-                </div>
-                {discount > 0 && (
-                  <div className="flex justify-between text-emerald-600 font-semibold">
-                    <span>Discount</span>
-                    <span>-₹{discount.toLocaleString("en-IN")}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Delivery Charge</span>
-                  <span className={isCod ? "font-bold text-foreground" : "font-bold text-emerald-600"}>
-                    {isCod ? `₹${codAdvanceDeliveryFee} (Advance Fee)` : "₹0 FREE (Prepaid)"}
-                  </span>
-                </div>
-                <div className="flex justify-between border-t border-border/60 pt-2 text-xs font-bold text-foreground">
-                  <span>Total Order Value</span>
-                  <span>₹{total.toLocaleString("en-IN")}</span>
-                </div>
-
-                {isCod ? (
-                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-1.5 mt-2">
-                    <div className="flex justify-between items-center text-xs font-bold text-amber-900 dark:text-amber-300">
-                      <span>1. Pay Online Now (Advance Delivery):</span>
-                      <span className="text-sm font-black text-[#5b6a07] dark:text-[#B0CB1F]">₹{amountToPayNow.toLocaleString("en-IN")}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs font-bold text-slate-800 dark:text-slate-200">
-                      <span>2. Pay Cash on Delivery (to courier):</span>
-                      <span className="text-sm font-black text-slate-900 dark:text-white">₹{amountDueOnDelivery.toLocaleString("en-IN")}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex justify-between items-center text-xs font-bold text-emerald-900 dark:text-emerald-300 mt-2">
-                    <span>Pay Online Now (100% Free Delivery):</span>
-                    <span className="text-base font-black text-[#5b6a07] dark:text-[#B0CB1F]">₹{amountToPayNow.toLocaleString("en-IN")}</span>
-                  </div>
-                )}
-              </div>
+              {renderPriceDetails()}
             </div>
           )}
         </div>
@@ -1055,7 +1111,7 @@ export function CheckoutModal() {
                 ) : isCod ? (
                   <>
                     <Lock className="h-4 w-4" />
-                    <span>Pay ₹{amountToPayNow.toLocaleString("en-IN")} Advance & Place COD Order</span>
+                    <span>Pay ₹{amountToPayNow.toLocaleString("en-IN")} Collection Charge & Place COD Order</span>
                   </>
                 ) : (
                   <>
@@ -1189,7 +1245,7 @@ export function CheckoutModal() {
               {shownIsCod ? (
                 <>
                   <div className="flex justify-between text-emerald-700 dark:text-emerald-400 font-bold">
-                    <span>Advance Delivery Paid:</span>
+                    <span>COD Collection Charge Paid:</span>
                     <span>₹{shownPaidNow.toLocaleString("en-IN")} (Online Paid)</span>
                   </div>
                   <div className="flex justify-between text-amber-800 dark:text-amber-300 font-black bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20">
@@ -1319,7 +1375,7 @@ export function CheckoutModal() {
                   </div>
                 </div>
                 <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                  ₹0 FREE (Prepaid) / ₹{codAdvanceDeliveryFee} (COD)
+                  ₹0 FREE
                 </span>
               </div>
             </div>
@@ -1351,35 +1407,7 @@ export function CheckoutModal() {
               </div>
             </div>
 
-            {/* Price Details */}
-            <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-card p-4 space-y-2 text-xs">
-              <span className="font-bold text-foreground block pb-1">Price Details</span>
-              <div className="flex justify-between text-neutral-500">
-                <span>Item Total</span>
-                <span className="font-semibold text-foreground">₹{subtotal.toLocaleString("en-IN")}</span>
-              </div>
-              {discount > 0 && (
-                <div className="flex justify-between text-emerald-600 font-semibold">
-                  <span>Discount</span>
-                  <span>-₹{discount.toLocaleString("en-IN")}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-neutral-500">
-                <span>Delivery Charges</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                  ₹0 FREE (Prepaid) / ₹{codAdvanceDeliveryFee} (COD)
-                </span>
-              </div>
-              <div className="flex justify-between border-t border-black/[0.06] dark:border-white/[0.08] pt-2 items-baseline">
-                <div>
-                  <span className="font-bold text-sm text-foreground block">Product Amount</span>
-                  <span className="text-[10px] text-neutral-400">Inclusive of all taxes</span>
-                </div>
-                <span className="font-display text-xl font-black text-foreground">
-                  ₹{productPriceDue.toLocaleString("en-IN")}
-                </span>
-              </div>
-            </div>
+            {renderPriceDetails()}
 
             {/* Continue to Payment CTA */}
             <div className="pt-2">
@@ -1516,7 +1544,7 @@ export function CheckoutModal() {
             <div className="space-y-2 pt-1">
               <div className="flex items-center gap-2.5 px-0.5">
                 <span className="text-[10.5px] font-black uppercase tracking-wider text-muted-foreground">
-                  CASH ON DELIVERY (WITH ADVANCE DELIVERY CHARGE)
+                  CASH ON DELIVERY (WITH COLLECTION CHARGE)
                 </span>
                 <div className="flex-1 h-px bg-border/80" />
               </div>
@@ -1526,8 +1554,8 @@ export function CheckoutModal() {
                   {
                     id: "cod" as const,
                     title: "Cash on Delivery (COD)",
-                    desc: `Pay ₹${codAdvanceDeliveryFee} advance delivery fee online • Pay ₹${productPriceDue.toLocaleString("en-IN")} cash upon delivery`,
-                    badge: `₹${codAdvanceDeliveryFee} Advance Fee`,
+                    desc: `Pay ₹${codCollectionCharge} COD collection charge online • Pay ₹${productPriceDue.toLocaleString("en-IN")} cash upon delivery`,
+                    badge: `₹${codCollectionCharge} Collection Charge`,
                     icon: "cod",
                   },
                 ].map((pm) => {
@@ -1554,7 +1582,7 @@ export function CheckoutModal() {
                               {pm.title}
                             </span>
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                              ₹{codAdvanceDeliveryFee} Advance
+                              ₹{codCollectionCharge} Collection Charge
                             </span>
                           </div>
                           <p className="text-[10.5px] text-muted-foreground mt-0.5">{pm.desc}</p>
@@ -1576,53 +1604,7 @@ export function CheckoutModal() {
               </div>
             </div>
 
-            {/* Price Details */}
-            <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-card p-4 space-y-2 text-xs">
-              <span className="font-bold text-foreground block pb-1">Price Details</span>
-              <div className="flex justify-between text-neutral-500">
-                <span>Item Total</span>
-                <span className="font-semibold text-foreground">₹{subtotal.toLocaleString("en-IN")}</span>
-              </div>
-              {discount > 0 && (
-                <div className="flex justify-between text-emerald-600 font-semibold">
-                  <span>Discount</span>
-                  <span>-₹{discount.toLocaleString("en-IN")}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-neutral-500">
-                <span>Delivery Charges</span>
-                <span className={isCod ? "font-bold text-foreground" : "font-bold text-emerald-600 dark:text-emerald-400"}>
-                  {isCod ? `₹${codAdvanceDeliveryFee} (Advance Fee)` : "₹0 FREE (Prepaid)"}
-                </span>
-              </div>
-              <div className="flex justify-between border-t border-black/[0.06] dark:border-white/[0.08] pt-2 items-baseline">
-                <div>
-                  <span className="font-bold text-sm text-foreground block">Total Order Value</span>
-                  <span className="text-[10px] text-neutral-400">Inclusive of all taxes</span>
-                </div>
-                <span className="font-display text-xl font-black text-foreground">
-                  ₹{total.toLocaleString("en-IN")}
-                </span>
-              </div>
-
-              {isCod ? (
-                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-1.5 mt-2">
-                  <div className="flex justify-between items-center text-xs font-bold text-amber-900 dark:text-amber-300">
-                    <span>1. Pay Online Now (Advance Delivery):</span>
-                    <span className="text-sm font-black text-[#5b6a07] dark:text-[#B0CB1F]">₹{amountToPayNow.toLocaleString("en-IN")}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs font-bold text-slate-800 dark:text-slate-200">
-                    <span>2. Pay Cash on Delivery (to courier):</span>
-                    <span className="text-sm font-black text-slate-900 dark:text-white">₹{amountDueOnDelivery.toLocaleString("en-IN")}</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex justify-between items-center text-xs font-bold text-emerald-900 dark:text-emerald-300 mt-2">
-                  <span>Pay Online Now (100% Free Delivery):</span>
-                  <span className="text-base font-black text-[#5b6a07] dark:text-[#B0CB1F]">₹{amountToPayNow.toLocaleString("en-IN")}</span>
-                </div>
-              )}
-            </div>
+            {renderPriceDetails()}
 
             {/* Place Order CTA */}
             <div className="pt-2">
@@ -1636,7 +1618,7 @@ export function CheckoutModal() {
                 ) : isCod ? (
                   <>
                     <Lock className="h-4 w-4 stroke-[2.2]" />
-                    <span>Pay ₹{amountToPayNow.toLocaleString("en-IN")} Advance & Place COD Order</span>
+                    <span>Pay ₹{amountToPayNow.toLocaleString("en-IN")} Collection Charge & Place COD Order</span>
                   </>
                 ) : (
                   <>

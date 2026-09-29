@@ -910,7 +910,7 @@ function ProductDetailPage() {
                 <RotateCcw className="h-5 w-5 stroke-[1.8]" />
               </div>
               <div>
-                <span className="font-bold text-foreground block text-xs">7-Day Easy Returns</span>
+                <span className="font-bold text-foreground block text-xs">3-Day Easy Returns</span>
                 <span className="text-[11px] text-muted-foreground">Doorstep pickup</span>
               </div>
             </div>
@@ -1353,7 +1353,7 @@ function ProductDetailPage() {
               </button>
               {openMobileAccordions.returns && (
                 <div className="pb-3.5 text-neutral-600 dark:text-neutral-300 space-y-2 text-xs leading-relaxed">
-                  <p>• <strong>7-Day Easy Returns:</strong> Doorstep pickup and instant exchange or refund.</p>
+                  <p>• <strong>3-Day Easy Returns:</strong> Doorstep pickup and instant exchange or refund.</p>
                   <p>• <strong>1-Year Official Warranty:</strong> 100% replacement coverage for manufacturing defects.</p>
                 </div>
               )}

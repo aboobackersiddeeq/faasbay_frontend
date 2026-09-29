@@ -85,7 +85,7 @@ function fallbackSmartGenerator(keyword: string, brand: string, category: string
     metaTitle,
     metaDescription,
     slug,
-    features: ["Premium Grade Materials", "100% Authentic Quality", "Fast Express Shipping", "Easy 7-Day Returns"],
+    features: ["Premium Grade Materials", "100% Authentic Quality", "Fast Express Shipping", "Easy 3-Day Returns"],
     focusKeyword: cleanKw.toLowerCase(),
   };
 }

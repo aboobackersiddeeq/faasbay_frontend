@@ -688,7 +688,7 @@ export function Card({ children, className = "", ...rest }: React.HTMLAttributes
 
 // ── Date Range Selector ─────────────────────────────────────────────────────
 
-const dateRanges = ["Today", "Yesterday", "Last 7 Days", "Last 30 Days", "This Month", "Last Month", "This Year"] as const;
+const dateRanges = ["Today", "Yesterday", "Last 3 Days", "Last 30 Days", "This Month", "Last Month", "This Year"] as const;
 
 export function DateRangeSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);

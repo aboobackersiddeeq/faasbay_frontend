@@ -11,7 +11,7 @@ export function TrustGuaranteeStrip() {
     {
       icon: RotateCcw,
       title: "Easy Returns",
-      desc: "Within 7 days",
+      desc: "Within 3 days",
     },
     {
       icon: ShieldCheck,

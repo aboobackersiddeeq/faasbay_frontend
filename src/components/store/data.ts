@@ -87,14 +87,20 @@ export async function checkReviewEligibility(productId: string, reviewer: Review
 export async function submitProductReview(
   productId: string,
   reviewer: Reviewer,
-  review: { rating: number; comment: string }
+  /** `images` are base64 data URIs; the server uploads them once the purchase check passes. */
+  review: { rating: number; comment: string; images?: string[] }
 ): Promise<Review> {
-  return api.post<Review>(`${API_ENDPOINTS.products}/${encodeURIComponent(productId)}/reviews`, {
-    ...review,
-    author: reviewer.name,
-    phone: reviewer.phone,
-    email: reviewer.email,
-  });
+  return api.post<Review>(
+    `${API_ENDPOINTS.products}/${encodeURIComponent(productId)}/reviews`,
+    {
+      ...review,
+      author: reviewer.name,
+      phone: reviewer.phone,
+      email: reviewer.email,
+    },
+    // Photo uploads to Cloudinary can take a while on slow connections.
+    review.images?.length ? { timeoutMs: 60000 } : undefined
+  );
 }
 
 export interface ReviewSummary {

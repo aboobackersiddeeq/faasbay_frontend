@@ -2,10 +2,10 @@ import React, { useState } from "react";
 import {
   ChevronDown,
   Heart,
+  KeyRound,
   LogOut,
   MapPin,
   Package,
-  User,
   UserCircle,
   type LucideIcon,
 } from "lucide-react";
@@ -22,17 +22,17 @@ export function HeaderAccountMenu() {
     return (
       <button
         type="button"
-        aria-label="Account"
         onClick={openAuthModal}
-        className="grid h-9 w-9 place-items-center rounded-full text-foreground transition-colors hover:bg-secondary cursor-pointer"
+        className="flex h-9 items-center px-3 text-sm font-medium text-foreground transition-colors hover:text-foreground/70 cursor-pointer"
       >
-        <User className="h-4.5 w-4.5" />
+        Login
       </button>
     );
   }
 
   const items: { label: string; Icon: LucideIcon; onSelect: () => void; danger?: boolean }[] = [
     { label: "My Profile", Icon: UserCircle, onSelect: () => openAccountView("menu") },
+    { label: "Change Password", Icon: KeyRound, onSelect: () => openAccountView("password") },
     { label: "Orders", Icon: Package, onSelect: () => openAccountView("orders") },
     { label: "Saved Addresses", Icon: MapPin, onSelect: () => openAccountView("addresses") },
     { label: "Wishlist", Icon: Heart, onSelect: openWishlist },

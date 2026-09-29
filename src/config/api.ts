@@ -18,6 +18,8 @@ export const API_ENDPOINTS = {
   adminMe: `${API_BASE_URL}/api/auth/admin/me`,
   customerRegister: `${API_BASE_URL}/api/auth/customer/register`,
   customerLogin: `${API_BASE_URL}/api/auth/customer/login`,
+  customerProfile: `${API_BASE_URL}/api/auth/customer/profile`,
+  customerChangePassword: `${API_BASE_URL}/api/auth/customer/change-password`,
 
   // Catalog
   products: `${API_BASE_URL}/api/products`,

@@ -8,7 +8,7 @@ export interface CartItem {
   selectedVariant?: string | undefined;
 }
 
-export type AccountView = "menu" | "orders" | "addresses";
+export type AccountView = "menu" | "orders" | "addresses" | "profile" | "password";
 
 export interface UserProfile {
   name: string;

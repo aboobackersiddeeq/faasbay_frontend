@@ -12,11 +12,14 @@ import {
   MapPin,
   LogOut,
   ChevronRight,
+  UserCog,
+  KeyRound,
 } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
 import faasbayLogo from "@/assets/faasbay-logo.png";
 import { MyOrdersView } from "./MyOrdersView";
 import { MyAddressesView } from "./MyAddressesView";
+import { ChangePasswordView, EditProfileView } from "./AccountSettingsView";
 import { loginCustomer, registerCustomer } from "@/lib/customer-account";
 
 type FieldErrors = Partial<Record<"name" | "email" | "phone" | "password" | "identifier", string>>;
@@ -147,6 +150,10 @@ export function AuthModal() {
             <MyOrdersView phone={userProfile.phone} email={userProfile.email} onBack={() => setView("menu")} />
           ) : view === "addresses" ? (
             <MyAddressesView phone={userProfile.phone} email={userProfile.email} onBack={() => setView("menu")} />
+          ) : view === "profile" ? (
+            <EditProfileView onBack={() => setView("menu")} />
+          ) : view === "password" ? (
+            <ChangePasswordView onBack={() => setView("menu")} />
           ) : (
           <div className="p-6 space-y-5">
             <div className="flex items-center gap-3.5 pb-4 border-b border-black/[0.06] dark:border-white/10">
@@ -167,6 +174,38 @@ export function AuthModal() {
 
             {/* Quick Actions List */}
             <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setView("profile")}
+                className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] hover:bg-secondary/40 transition-colors text-left text-xs font-bold text-foreground cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-secondary text-foreground">
+                    <UserCog className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <span className="block">Edit Profile</span>
+                    <span className="text-[10.5px] font-normal text-neutral-500">Update your name and mobile number</span>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-neutral-400" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("password")}
+                className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] hover:bg-secondary/40 transition-colors text-left text-xs font-bold text-foreground cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-secondary text-foreground">
+                    <KeyRound className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <span className="block">Change Password</span>
+                    <span className="text-[10.5px] font-normal text-neutral-500">Keep your account secure</span>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-neutral-400" />
+              </button>
               <button
                 type="button"
                 onClick={() => setView("orders")}
