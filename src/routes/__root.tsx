@@ -54,9 +54,8 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
-  const isAdminRoute = router.state.location.pathname.startsWith("/llp") ||
-    router.state.location.pathname.startsWith("/admin");
-  const homeHref = isAdminRoute ? "/llp" : "/";
+  const isAdminRoute = router.state.location.pathname.startsWith("/faasbay.llp.administration");
+  const homeHref = isAdminRoute ? "/faasbay.llp.administration" : "/";
   const homeLabel = isAdminRoute ? "Go to Dashboard" : "Go home";
 
   return (

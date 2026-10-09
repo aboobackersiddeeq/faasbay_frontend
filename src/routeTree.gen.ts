@@ -11,8 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SlugRouteImport } from './routes/$slug'
-import { Route as AdminRouteImport } from './routes/admin'
-import { Route as LlpRouteImport } from './routes/llp'
+import { Route as FaasbayDotllpDotadministrationRouteImport } from './routes/faasbay[.]llp[.]administration'
 import { Route as ProductProductIdRouteImport } from './routes/product.$productId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -25,16 +24,12 @@ const SlugRoute = SlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminRoute = AdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LlpRoute = LlpRouteImport.update({
-  id: '/llp',
-  path: '/llp',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const FaasbayDotllpDotadministrationRoute =
+  FaasbayDotllpDotadministrationRouteImport.update({
+    id: '/faasbay.llp.administration',
+    path: '/faasbay.llp.administration',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ProductProductIdRoute = ProductProductIdRouteImport.update({
   id: '/product/$productId',
   path: '/product/$productId',
@@ -44,38 +39,40 @@ const ProductProductIdRoute = ProductProductIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
-  '/admin': typeof AdminRoute
-  '/llp': typeof LlpRoute
+  '/faasbay.llp.administration': typeof FaasbayDotllpDotadministrationRoute
   '/product/$productId': typeof ProductProductIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
-  '/admin': typeof AdminRoute
-  '/llp': typeof LlpRoute
+  '/faasbay.llp.administration': typeof FaasbayDotllpDotadministrationRoute
   '/product/$productId': typeof ProductProductIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
-  '/admin': typeof AdminRoute
-  '/llp': typeof LlpRoute
+  '/faasbay.llp.administration': typeof FaasbayDotllpDotadministrationRoute
   '/product/$productId': typeof ProductProductIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$slug' | '/admin' | '/llp' | '/product/$productId'
+  fullPaths:
+    '/' | '/$slug' | '/faasbay.llp.administration' | '/product/$productId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$slug' | '/admin' | '/llp' | '/product/$productId'
-  id: '__root__' | '/' | '/$slug' | '/admin' | '/llp' | '/product/$productId'
+  to: '/' | '/$slug' | '/faasbay.llp.administration' | '/product/$productId'
+  id:
+    | '__root__'
+    | '/'
+    | '/$slug'
+    | '/faasbay.llp.administration'
+    | '/product/$productId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SlugRoute: typeof SlugRoute
-  AdminRoute: typeof AdminRoute
-  LlpRoute: typeof LlpRoute
+  FaasbayDotllpDotadministrationRoute: typeof FaasbayDotllpDotadministrationRoute
   ProductProductIdRoute: typeof ProductProductIdRoute
 }
 
@@ -95,18 +92,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin': {
-      id: '/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/llp': {
-      id: '/llp'
-      path: '/llp'
-      fullPath: '/llp'
-      preLoaderRoute: typeof LlpRouteImport
+    '/faasbay.llp.administration': {
+      id: '/faasbay.llp.administration'
+      path: '/faasbay.llp.administration'
+      fullPath: '/faasbay.llp.administration'
+      preLoaderRoute: typeof FaasbayDotllpDotadministrationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/product/$productId': {
@@ -122,8 +112,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SlugRoute: SlugRoute,
-  AdminRoute: AdminRoute,
-  LlpRoute: LlpRoute,
+  FaasbayDotllpDotadministrationRoute: FaasbayDotllpDotadministrationRoute,
   ProductProductIdRoute: ProductProductIdRoute,
 }
 export const routeTree = rootRouteImport

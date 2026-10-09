@@ -1,5 +1,5 @@
 // ============================================================================
-// FaasBay Commerce OS — Master Admin Portal Shell (/llp)
+// FaasBay Commerce OS — Master Admin Portal Shell (/faasbay.llp.administration)
 // Apple-inspired Minimal Frosted Glass Interface with Persistent State
 // ============================================================================
 import React, { useState, useEffect } from "react";
@@ -63,7 +63,7 @@ import {
   type AdminUser,
 } from "@/lib/admin-session";
 
-export const Route = createFileRoute("/llp")({
+export const Route = createFileRoute("/faasbay.llp.administration")({
   head: () => ({
     meta: [{ title: "FaasBay — Admin Portal" }],
   }),
@@ -442,7 +442,7 @@ function AdminManagementPortal() {
       <aside className="hidden lg:flex flex-col w-60 h-screen bg-white/70 backdrop-blur-2xl border-r border-white/80 text-slate-700 shrink-0 select-none shadow-[0_8px_32px_rgba(0,0,0,0.03)] z-10">
         {/* Brand Header */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-white/60 bg-white/40 shrink-0">
-          <Link to="/llp" className="flex items-center gap-2.5">
+          <Link to="/faasbay.llp.administration" className="flex items-center gap-2.5">
             <img
               src={faasbayLogo}
               alt="FaasBay"

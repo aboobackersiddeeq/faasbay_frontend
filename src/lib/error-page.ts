@@ -1,7 +1,6 @@
 export function renderErrorPage(pathname?: string): string {
-  const isAdminRoute = pathname != null &&
-    (pathname.startsWith("/llp") || pathname.startsWith("/admin"));
-  const homeHref = isAdminRoute ? "/llp" : "/";
+  const isAdminRoute = pathname != null && pathname.startsWith("/faasbay.llp.administration");
+  const homeHref = isAdminRoute ? "/faasbay.llp.administration" : "/";
   const homeLabel = isAdminRoute ? "Go to Dashboard" : "Go home";
 
   return `<!doctype html>
