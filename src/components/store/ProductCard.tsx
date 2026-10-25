@@ -4,6 +4,7 @@ import { Heart, Star, Plus, Check } from "lucide-react";
 import type { Product } from "./data";
 import { useCart } from "@/hooks/use-cart";
 import { useWishlist } from "@/hooks/use-wishlist";
+import { cldUrl, cldSrcSet } from "@/lib/cloudinary-image";
 
 export function ProductCard({ product }: { product: Product }) {
   const { isWishlisted, toggleWishlist } = useWishlist();
@@ -64,15 +65,19 @@ export function ProductCard({ product }: { product: Product }) {
         {/* Desktop Image Container */}
         <div className="relative aspect-square w-full overflow-hidden rounded-[10px] bg-[#faf9f6]/90 dark:bg-[#16191f]/90 backdrop-blur-xs border border-black/[0.06] dark:border-white/[0.08] shadow-[0_2px_10px_-2px_rgba(0,0,0,0.02)] transition-all duration-300 group-hover:shadow-[0_8px_24px_-4px_rgba(0,0,0,0.08)] group-hover:border-black/15 dark:group-hover:border-white/20">
           <img
-            src={product.image}
+            src={cldUrl(product.image, 600)}
+            srcSet={cldSrcSet(product.image, [300, 450, 600])}
+            sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, 33vw"
             alt={product.title}
             loading="lazy"
+            decoding="async"
             width={600}
             height={600}
             onError={(e) => {
               const target = e.currentTarget;
               if (!target.dataset["tried"]) {
                 target.dataset["tried"] = "true";
+                target.removeAttribute("srcset");
                 target.src =
                   "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop&q=80";
               }
@@ -168,13 +173,19 @@ export function ProductCard({ product }: { product: Product }) {
         {/* Product Image Container (~1:1 ratio, full cover matching desktop) */}
         <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-[#faf9f6]/90 dark:bg-[#16191f]/90 border border-black/[0.06] dark:border-white/[0.08] shadow-[0_2px_8px_-2px_rgba(0,0,0,0.02)]">
           <img
-            src={product.image}
+            src={cldUrl(product.image, 450)}
+            srcSet={cldSrcSet(product.image, [300, 450, 600])}
+            sizes="50vw"
             alt={product.title}
             loading="lazy"
+            decoding="async"
+            width={450}
+            height={450}
             onError={(e) => {
               const target = e.currentTarget;
               if (!target.dataset["tried"]) {
                 target.dataset["tried"] = "true";
+                target.removeAttribute("srcset");
                 target.src =
                   "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop&q=80";
               }

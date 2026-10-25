@@ -44,11 +44,13 @@ import {
   type Product,
   formatProductForStorefront,
   fetchProductById,
+  findCachedStoreProduct,
   summarizeReviews,
   reviewStars,
   formatReviewDate,
 } from "@/components/store/data";import { ProductCard } from "@/components/store/ProductCard";
 import { useCart } from "@/hooks/use-cart";
+import { cldUrl, cldSrcSet } from "@/lib/cloudinary-image";
 
 function ProductRouteErrorFallback({ reset }: { error: Error; reset: () => void }) {
   const navigate = useNavigate();
@@ -81,7 +83,76 @@ function ProductRouteErrorFallback({ reset }: { error: Error; reset: () => void 
   );
 }
 
+const SITE_URL: string =
+  (import.meta.env["VITE_SITE_URL"] as string)?.replace(/\/$/, "") || "https://faasbay.netlify.app";
+
+// A slow API must never hold up the server render; the page still loads its data client-side.
+const SSR_PRODUCT_TIMEOUT_MS = 2500;
+
+/**
+ * The product for this URL's <head> tags. Client-side navigations read it from the
+ * already-loaded catalog (no network wait); the server render fetches it so the first
+ * HTML response carries the product's own title, description and structured data.
+ */
+async function loadProductForHead(productId: string): Promise<Product | null> {
+  const id = decodeURIComponent(productId).trim();
+  const cached = findCachedStoreProduct(id);
+  if (cached) return cached;
+  if (typeof window !== "undefined") return null;
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), SSR_PRODUCT_TIMEOUT_MS));
+  return Promise.race([fetchProductById(id), timeout]);
+}
+
+function productHead(p: Product | null | undefined) {
+  if (!p) return {};
+  const title = p.metaTitle || `${p.title} | FaasBay`;
+  const description = p.metaDescription || `Buy ${p.title} online at FaasBay. Cash on Delivery available.`;
+  const url = `${SITE_URL}/product/${encodeURIComponent(p.id)}`;
+  const image = cldUrl(p.image, 1000);
+  const price = parseFloat(String(p.price).replace(/[^0-9.]/g, "")) || 0;
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: p.title,
+    description,
+    image: (p.images && p.images.length ? p.images : [p.image]).map((img) => cldUrl(img, 1000)),
+    sku: p.id,
+    brand: { "@type": "Brand", name: p.shop },
+    category: p.category,
+    offers: {
+      "@type": "Offer",
+      url,
+      priceCurrency: "INR",
+      price: price.toFixed(2),
+      availability: (p.stock ?? 1) > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      itemCondition: "https://schema.org/NewCondition",
+    },
+  };
+  return {
+    meta: [
+      { title },
+      { name: "description", content: description },
+      { property: "og:type", content: "product" },
+      { property: "og:title", content: title },
+      { property: "og:description", content: description },
+      { property: "og:url", content: url },
+      { property: "og:image", content: image },
+      { property: "og:image:width", content: "1000" },
+      { property: "og:image:height", content: "1000" },
+      { property: "og:image:alt", content: p.title },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: title },
+      { name: "twitter:description", content: description },
+      { name: "twitter:image", content: image },
+    ],
+    links: [{ rel: "canonical", href: url }],
+    scripts: [{ type: "application/ld+json", children: JSON.stringify(structuredData) }],
+  };
+}
+
 export const Route = createFileRoute("/product/$productId")({
+  loader: ({ params }) => loadProductForHead(params.productId),
+  head: ({ loaderData }) => productHead(loaderData),
   component: ProductDetailPage,
   errorComponent: ProductRouteErrorFallback,
 });
@@ -406,10 +477,10 @@ function ProductDetailPage() {
                 onMouseEnter={() => setIsHoveringImage(true)}
                 onMouseMove={handleMouseMove}
                 onMouseLeave={() => setIsHoveringImage(false)}
-                className="relative aspect-[4/3.4] w-full overflow-hidden rounded-3xl bg-slate-50/70 dark:bg-neutral-900/60 backdrop-blur-2xl border border-slate-200/70 dark:border-white/10 shadow-[0_12px_36px_rgba(0,0,0,0.04)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.4)] group select-none cursor-crosshair flex items-center justify-center"
+                className="relative aspect-square w-full overflow-hidden rounded-3xl bg-slate-50/70 dark:bg-neutral-900/60 backdrop-blur-2xl border border-slate-200/70 dark:border-white/10 shadow-[0_12px_36px_rgba(0,0,0,0.04)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.4)] group select-none cursor-crosshair flex items-center justify-center"
               >
                 <img
-                  src={galleryImages[activeImageIndex] || product.image}
+                  src={cldUrl(galleryImages[activeImageIndex] || product.image, 1000)}
                   alt={product.title}
                   style={{
                     transformOrigin: `${zoomPos.x}% ${zoomPos.y}%`,
@@ -480,7 +551,8 @@ function ProductDetailPage() {
                       }`}
                     >
                       <img
-                        src={img}
+                        src={cldUrl(img, 160)}
+                        loading="lazy"
                         alt={`Thumbnail ${idx + 1}`}
                         onError={(e) => {
                           const target = e.currentTarget;
@@ -1019,12 +1091,15 @@ function ProductDetailPage() {
           <div className="space-y-3">
             <div className="relative w-full aspect-square bg-[#f8f7f4] dark:bg-[#18181b] flex items-center justify-center overflow-hidden select-none border-b border-black/[0.04] dark:border-white/[0.08]">
               <img
-                src={galleryImages[activeImageIndex] || product.image}
+                src={cldUrl(galleryImages[activeImageIndex] || product.image, 800)}
+                srcSet={cldSrcSet(galleryImages[activeImageIndex] || product.image, [400, 600, 800])}
+                sizes="100vw"
                 alt={product.title}
                 onError={(e) => {
                   const target = e.currentTarget;
                   if (!target.dataset["tried"]) {
                     target.dataset["tried"] = "true";
+                    target.removeAttribute("srcset");
                     target.src = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop&q=80";
                   }
                 }}
@@ -1091,7 +1166,8 @@ function ProductDetailPage() {
                     }`}
                   >
                     <img
-                      src={img}
+                      src={cldUrl(img, 160)}
+                      loading="lazy"
                       alt={`Thumbnail ${idx + 1}`}
                       onError={(e) => {
                         const target = e.currentTarget;

@@ -173,6 +173,9 @@ export type Product = {
   isCodFree?: boolean;
   deliveryType?: "free" | "custom";
   deliveryCharge?: number;
+  slug?: string | undefined;
+  metaTitle?: string | undefined;
+  metaDescription?: string | undefined;
 };
 
 /**
@@ -259,6 +262,9 @@ export function formatProductForStorefront(p: any): Product {
     isCodFree: p.isCodFree ?? false,
     deliveryType: p.deliveryType || "free",
     deliveryCharge: p.deliveryCharge !== undefined ? Number(p.deliveryCharge) : (p.codCharge !== undefined ? Number(p.codCharge) : 100),
+    slug: p.slug || undefined,
+    metaTitle: p.metaTitle || undefined,
+    metaDescription: p.metaDescription || p.shortDescription || undefined,
   };
 }
 
@@ -285,6 +291,14 @@ const adminCatalogStore = createRemoteStore<any[]>([], async () => {
   const rows = await api.get<any[]>(`${API_ENDPOINTS.products}${queryString({ includePending: 1 })}`);
   return Array.isArray(rows) ? rows : [];
 });
+
+/** A product from the already-loaded storefront catalog (by id or slug), without a network request. */
+export function findCachedStoreProduct(idOrSlug: string): Product | undefined {
+  const key = idOrSlug.trim().toLowerCase();
+  return storefrontStore
+    .get()
+    .find((p) => String(p.id).toLowerCase() === key || (p.slug && p.slug.toLowerCase() === key));
+}
 
 /** Live storefront catalog. Shares one request across every component that calls it. */
 export function useStoreProducts(): Product[] {
