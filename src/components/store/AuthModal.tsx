@@ -14,6 +14,8 @@ import {
   ChevronRight,
   UserCog,
   KeyRound,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
 import faasbayLogo from "@/assets/faasbay-logo.png";
@@ -45,6 +47,7 @@ export function AuthModal() {
   const [email, setEmail] = useState("");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -99,6 +102,7 @@ export function AuthModal() {
         state: account.state,
       });
       setPassword("");
+      setShowPassword(false);
       closeAuthModal();
     } catch (err) {
       // A duplicate email/phone is reported under the field it clashes with.
@@ -368,13 +372,22 @@ export function AuthModal() {
                   <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
                   <input
                     id="auth-password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     autoComplete={tab === "signup" ? "new-password" : "current-password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={tab === "signup" ? "At least 6 characters" : "••••••••"}
-                    className={`${inputClass} ${borderFor("password")}`}
+                    className={`${inputClass.replace("pr-3.5", "pr-11")} ${borderFor("password")}`}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 grid h-8 w-8 place-items-center rounded-lg text-neutral-400 hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
                 {fieldError("password")}
               </div>
