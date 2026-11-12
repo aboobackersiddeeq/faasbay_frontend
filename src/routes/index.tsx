@@ -291,16 +291,16 @@ function Index() {
             <section id="catalog-section" className="mx-auto max-w-[1280px] px-4 sm:px-6 py-2 sm:py-4">
               {/* Active Filter Header */}
               <div className="flex items-center justify-between gap-3 pb-3 border-b border-black/[0.06] dark:border-white/10 mb-4">
-                <div>
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-extrabold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
+                    <span className="truncate text-[11px] font-extrabold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
                       {filterHeader.eyebrow}
                     </span>
-                    <span className="rounded-full bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 px-2.5 py-0.5 text-[10px] font-bold">
+                    <span className="shrink-0 whitespace-nowrap rounded-full bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 px-2.5 py-0.5 text-[10px] font-bold">
                       {filteredProducts.length} items
                     </span>
                   </div>
-                  <h2 className="font-display text-xl sm:text-2xl font-black text-neutral-950 dark:text-white tracking-tight mt-0.5">
+                  <h2 className="font-display text-lg sm:text-2xl font-black text-neutral-950 dark:text-white tracking-tight leading-tight mt-0.5 line-clamp-2 break-words">
                     {filterHeader.title}
                   </h2>
                 </div>
@@ -312,10 +312,13 @@ function Index() {
                     setSearchQuery("");
                     setQuickNavFilter(null);
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-neutral-300 dark:border-neutral-700 bg-surface px-3.5 py-1.5 text-xs font-bold text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-95 transition-all cursor-pointer shadow-2xs"
+                  aria-label="Clear filter"
+                  className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-full border border-neutral-300 dark:border-neutral-700 bg-surface px-3 sm:px-3.5 py-1.5 text-xs font-bold text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-95 transition-all cursor-pointer shadow-2xs"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
-                  <span>Clear Filter</span>
+                  <span>
+                    Clear<span className="hidden sm:inline"> Filter</span>
+                  </span>
                 </button>
               </div>
 

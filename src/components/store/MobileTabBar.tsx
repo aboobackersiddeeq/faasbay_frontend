@@ -1,22 +1,40 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Home, Layers, Search, Heart, ShoppingBag } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
 import { useWishlist, openWishlist } from "@/hooks/use-wishlist";
+import { scrollToSection } from "@/lib/scroll-to-section";
 
 export function MobileTabBar() {
   const [activeTab, setActiveTab] = useState("home");
   const { itemCount, openCart } = useCart();
   const { wishlistCount } = useWishlist();
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  const handleTabClick = (id: string) => {
+  // Fall back to "Home" once the user scrolls back to the top, so the
+  // Categories indicator doesn't stay lit while the hero is in view.
+  useEffect(() => {
+    if (activeTab !== "categories") return;
+    const onScroll = () => {
+      if (window.scrollY < 40) setActiveTab("home");
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [activeTab]);
+
+  const handleTabClick = async (id: string) => {
     setActiveTab(id);
     if (id === "cart") {
       openCart();
     } else if (id === "home") {
+      if (pathname !== "/") await navigate({ to: "/" });
       window.scrollTo({ top: 0, behavior: "smooth" });
     } else if (id === "categories") {
-      const el = document.getElementById("categories") || document.getElementById("catalog-section");
-      if (el) el.scrollIntoView({ behavior: "smooth" });
+      // The category rail lives on the home page; scroll it to just below the
+      // sticky header (scrollIntoView would tuck it underneath).
+      if (pathname !== "/") await navigate({ to: "/" });
+      scrollToSection(["categories", "catalog-section"], 8);
     } else if (id === "search") {
       window.scrollTo({ top: 0, behavior: "smooth" });
       setTimeout(() => {

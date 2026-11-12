@@ -1032,7 +1032,7 @@ export function CheckoutModal() {
                           </div>
 
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                               <span
                                 className={`text-xs sm:text-[13px] font-bold text-foreground ${
                                   isSelected ? "font-extrabold text-slate-950 dark:text-white" : ""
@@ -1040,7 +1040,7 @@ export function CheckoutModal() {
                               >
                                 {pm.title}
                               </span>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                              <span className="shrink-0 whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
                                 ₹{codCollectionCharge} Collection Charge
                               </span>
                             </div>
@@ -1577,11 +1577,11 @@ export function CheckoutModal() {
                         </div>
 
                         <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className={`text-xs font-bold text-foreground truncate ${isSelected ? "font-extrabold text-slate-950 dark:text-white" : ""}`}>
+                          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                            <span className={`text-xs font-bold text-foreground ${isSelected ? "font-extrabold text-slate-950 dark:text-white" : ""}`}>
                               {pm.title}
                             </span>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                            <span className="shrink-0 whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
                               ₹{codCollectionCharge} Collection Charge
                             </span>
                           </div>
